@@ -1,0 +1,11 @@
+# Project place file
+/HunDino.rbxlx
+
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
+
+sourcemap.json
+/tools/lune/
+/tools/lune.zip
+/*.rbxl.lock

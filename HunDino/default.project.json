@@ -1,0 +1,30 @@
+{
+  "name": "HunDino",
+  "tree": {
+    "$className": "DataModel",
+    "$ignoreUnknownInstances": true,
+
+    "ReplicatedStorage": {
+      "$ignoreUnknownInstances": true,
+      "Shared": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true,
+        "TrainingConfig": { "$path": "src/shared/TrainingConfig.luau" },
+        "CombatRules": { "$path": "src/shared/CombatRules.luau" }
+      }
+    },
+
+    "ServerScriptService": {
+      "$ignoreUnknownInstances": true,
+      "HunDinoTraining": { "$path": "src/server/Training.server.luau" }
+    },
+
+    "StarterPlayer": {
+      "$ignoreUnknownInstances": true,
+      "StarterPlayerScripts": {
+        "$ignoreUnknownInstances": true,
+        "HunDinoTraining": { "$path": "src/client/Training.client.luau" }
+      }
+    }
+  }
+}
