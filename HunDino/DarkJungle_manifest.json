@@ -1,0 +1,315 @@
+{
+  "backup": "backups/HunDino_L0_before_DarkJungle_20261005.rbxlx",
+  "bases": [
+    {
+      "diameter": 170,
+      "exits": 2,
+      "id": 1,
+      "ring": "outer",
+      "x": 0,
+      "y": 36.41654968261719,
+      "z": -785
+    },
+    {
+      "diameter": 170,
+      "exits": 2,
+      "id": 2,
+      "ring": "outer",
+      "x": 555.0787963867188,
+      "y": 36.77741241455078,
+      "z": -555.0787963867188
+    },
+    {
+      "diameter": 170,
+      "exits": 2,
+      "id": 3,
+      "ring": "outer",
+      "x": 785,
+      "y": 33.43000411987305,
+      "z": -4.8067388421337356e-14
+    },
+    {
+      "diameter": 170,
+      "exits": 2,
+      "id": 4,
+      "ring": "outer",
+      "x": 555.0787963867188,
+      "y": 36.77741241455078,
+      "z": 555.0787963867188
+    },
+    {
+      "diameter": 170,
+      "exits": 2,
+      "id": 5,
+      "ring": "outer",
+      "x": 9.613477684267471e-14,
+      "y": 36.41654968261719,
+      "z": 785
+    },
+    {
+      "diameter": 170,
+      "exits": 2,
+      "id": 6,
+      "ring": "outer",
+      "x": -555.0787963867188,
+      "y": 36.05568313598633,
+      "z": 555.0787963867188
+    },
+    {
+      "diameter": 170,
+      "exits": 2,
+      "id": 7,
+      "ring": "outer",
+      "x": -785,
+      "y": 39.40309524536133,
+      "z": 1.442021550996167e-13
+    },
+    {
+      "diameter": 170,
+      "exits": 2,
+      "id": 8,
+      "ring": "outer",
+      "x": -555.0787963867188,
+      "y": 36.05568313598633,
+      "z": -555.0787963867188
+    },
+    {
+      "diameter": 170,
+      "exits": 2,
+      "id": 9,
+      "ring": "middle",
+      "x": 0,
+      "y": 20.8669490814209,
+      "z": -455
+    },
+    {
+      "diameter": 170,
+      "exits": 2,
+      "id": 10,
+      "ring": "middle",
+      "x": 455,
+      "y": 22.21254539489746,
+      "z": -2.78607144272398e-14
+    },
+    {
+      "diameter": 170,
+      "exits": 2,
+      "id": 11,
+      "ring": "middle",
+      "x": 5.57214288544796e-14,
+      "y": 20.8669490814209,
+      "z": 455
+    },
+    {
+      "diameter": 170,
+      "exits": 2,
+      "id": 12,
+      "ring": "middle",
+      "x": -455,
+      "y": 19.52135467529297,
+      "z": 8.358214158765351e-14
+    }
+  ],
+  "forestTrees": 430,
+  "instances": 14815,
+  "routes": [
+    {
+      "length": 3894,
+      "name": "AncientRingRoad",
+      "width": 28
+    },
+    {
+      "length": 1789,
+      "name": "SanctuaryWalk",
+      "width": 28
+    },
+    {
+      "length": 165,
+      "name": "Base1_Safe",
+      "width": 28
+    },
+    {
+      "length": 303,
+      "name": "Base1_Forest",
+      "width": 16
+    },
+    {
+      "length": 336,
+      "name": "Inward1",
+      "width": 28
+    },
+    {
+      "length": 165,
+      "name": "Base2_Safe",
+      "width": 28
+    },
+    {
+      "length": 303,
+      "name": "Base2_Forest",
+      "width": 16
+    },
+    {
+      "length": 336,
+      "name": "Inward2",
+      "width": 28
+    },
+    {
+      "length": 165,
+      "name": "Base3_Safe",
+      "width": 28
+    },
+    {
+      "length": 303,
+      "name": "Base3_Forest",
+      "width": 16
+    },
+    {
+      "length": 336,
+      "name": "Inward3",
+      "width": 28
+    },
+    {
+      "length": 165,
+      "name": "Base4_Safe",
+      "width": 28
+    },
+    {
+      "length": 303,
+      "name": "Base4_Forest",
+      "width": 16
+    },
+    {
+      "length": 336,
+      "name": "Inward4",
+      "width": 28
+    },
+    {
+      "length": 165,
+      "name": "Base5_Safe",
+      "width": 28
+    },
+    {
+      "length": 303,
+      "name": "Base5_Forest",
+      "width": 16
+    },
+    {
+      "length": 336,
+      "name": "Inward5",
+      "width": 28
+    },
+    {
+      "length": 165,
+      "name": "Base6_Safe",
+      "width": 28
+    },
+    {
+      "length": 303,
+      "name": "Base6_Forest",
+      "width": 16
+    },
+    {
+      "length": 336,
+      "name": "Inward6",
+      "width": 28
+    },
+    {
+      "length": 165,
+      "name": "Base7_Safe",
+      "width": 28
+    },
+    {
+      "length": 303,
+      "name": "Base7_Forest",
+      "width": 16
+    },
+    {
+      "length": 336,
+      "name": "Inward7",
+      "width": 28
+    },
+    {
+      "length": 165,
+      "name": "Base8_Safe",
+      "width": 28
+    },
+    {
+      "length": 303,
+      "name": "Base8_Forest",
+      "width": 16
+    },
+    {
+      "length": 336,
+      "name": "Inward8",
+      "width": 28
+    },
+    {
+      "length": 210,
+      "name": "Base9_Safe",
+      "width": 28
+    },
+    {
+      "length": 208,
+      "name": "Base9_Forest",
+      "width": 16
+    },
+    {
+      "length": 210,
+      "name": "Base10_Safe",
+      "width": 28
+    },
+    {
+      "length": 208,
+      "name": "Base10_Forest",
+      "width": 16
+    },
+    {
+      "length": 210,
+      "name": "Base11_Safe",
+      "width": 28
+    },
+    {
+      "length": 208,
+      "name": "Base11_Forest",
+      "width": 16
+    },
+    {
+      "length": 210,
+      "name": "Base12_Safe",
+      "width": 28
+    },
+    {
+      "length": 208,
+      "name": "Base12_Forest",
+      "width": 16
+    },
+    {
+      "length": 329,
+      "name": "SanctuaryLink1.5707963267948966",
+      "width": 28
+    },
+    {
+      "length": 120,
+      "name": "SanctuaryLink3.141592653589793",
+      "width": 28
+    },
+    {
+      "length": 329,
+      "name": "SanctuaryLink4.71238898038469",
+      "width": 28
+    },
+    {
+      "length": 322,
+      "name": "GrottoApproach",
+      "width": 16
+    },
+    {
+      "length": 178,
+      "name": "TempleApproach",
+      "width": 20
+    }
+  ],
+  "seed": 7100512,
+  "source": "C:/Users/khanh/OneDrive/Desktop/game roblox/HunDino/HunDino_L0.rbxlx",
+  "version": "DJ.2"
+}

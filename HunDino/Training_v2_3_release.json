@@ -1,0 +1,19 @@
+{
+  "version": "v2.3",
+  "date": "2026-10-08",
+  "userInputSHA256": "6293a5ddc15f96b4cc8d649140867a7e869446c5d9355356ea912cd0e5e3b1dd",
+  "inputBackup": "C:\\Users\\khanh\\OneDrive\\Documents\\ChatGPT\\game roblox\\HunDino\\backups\\HunDino_v2_3_user_6293a5ddc15f.rbxl",
+  "desktop": "C:\\Users\\khanh\\OneDrive\\Desktop\\game roblox\\HunDino\\HunDino_DarkJungle_v2_3.rbxl",
+  "workspace": "C:\\Users\\khanh\\OneDrive\\Documents\\ChatGPT\\game roblox\\HunDino\\HunDino_DarkJungle_v2_3.rbxl",
+  "outputSHA256": "ce9b59ca9a1438b811f4b0ebb82888eab12cdb1807c8f51816bb5f7a7eea9827",
+  "changes": [
+    "Release aim on sheathe/sprint",
+    "Unlock mouse and hide reticle in Roblox menu",
+    "Preserve v2.3 binary and UTF-8 text"
+  ],
+  "verification": [
+    "12 baseline structural/rule groups passed",
+    "Post-save UTF-8 and embedded-source checks passed",
+    "Studio I, R, Shift/W and Escape input checks passed"
+  ]
+}

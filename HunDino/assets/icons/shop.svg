@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none" role="img" aria-label="Shop hunter pouch">
+<defs><linearGradient id="a" x1="60" y1="80" x2="190" y2="220" gradientUnits="userSpaceOnUse"><stop stop-color="#C58748"/><stop offset="1" stop-color="#533A2D"/></linearGradient></defs>
+<path d="M76 93Q72 36 128 36t52 57" stroke="#272924" stroke-width="22" stroke-linecap="round"/><path d="M76 93Q72 36 128 36t52 57" stroke="#C9A16C" stroke-width="12" stroke-linecap="round"/>
+<path d="M57 106q4-19 28-19h86q24 0 28 19l13 90q3 24-22 26H66q-25-2-22-26z" fill="url(#a)" stroke="#292A24" stroke-width="9" stroke-linejoin="round"/>
+<path d="M52 109q76 36 152 0l-9 44q-67 35-134 0z" fill="#A86839" stroke="#302923" stroke-width="8" stroke-linejoin="round"/>
+<path d="M91 87 77 58l22 9 10 20m56 0 14-29-22 9-10 20" fill="#E6D3A3" stroke="#403629" stroke-width="7" stroke-linejoin="round"/>
+<path d="M112 144h32v30q-16 19-32 0z" fill="#D9B36D" stroke="#302923" stroke-width="7"/><path d="M119 152h18v11h-18z" fill="#49634B"/>
+<path d="M72 197q56 18 112 0" stroke="#D9A768" stroke-width="5" stroke-linecap="round" stroke-dasharray="3 9"/>
+</svg>

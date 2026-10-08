@@ -1194,3 +1194,19 @@ Tra cứu ngày 27/09/2026; dùng làm căn cứ cho thiết kế kỹ thuật, 
 - Hồ sơ trong thư mục HunDino là bản dùng cùng code; bản THIET_KE_GAME.md ở thư mục cha được đồng bộ cùng nội dung v0.22 lần này. Các lần cập nhật sau cần giữ hai bản khớp, tránh đọc nhầm bản cũ ở Desktop.
 - Chỉ source mới trong Training.server.luau, Training.client.luau, TrainingConfig.luau, CombatRules.luau được dùng cho L0; script chào mẫu cũ không có gameplay.
 - Không có dữ liệu lưu tài khoản; base, trang bị mẫu, sát thương tập và thể lực đều chỉ trong phiên. Không có tài sản kiếm được hoặc trao thưởng nên không liên quan bảo toàn chiến lợi phẩm của P1.
+
+### 25.6. Cập nhật phạm vi luyện tập v2.2 — 07/10/2026
+
+Theo yêu cầu mới của người dùng, mở rộng bãi tập và đưa cả bảy vũ khí tại mục 18 vào để lựa chọn, thử đòn trên hình nộm. Giới hạn búa đầu tiên ở L0/P1 trước đây là lịch sử triển khai; không còn giới hạn bộ vũ khí của **bãi tập v2.2**.
+
+- Bãi tập 460 × 420 studs, sân võ ba hình nộm, bốn làn cung 30/60/90/120 studs, nhà vũ khí, giá giáp, hồ/cây/đèn trang trí và cổng đi/về. Sảnh giữ 12 base.
+- Bảy mẫu: búa, kiếm & khiên, katana, thương cán dài, song dao, cung, rìu đại hai lưỡi. Có mô hình, thường/mạnh/kỹ năng, thể lực và nhịp riêng. Búa giữ chuỗi thử thường → mạnh → kỹ năng kết thúc. Cung có ngắm và buff một mũi sau ngắm/lướt.
+- I chọn vũ khí khi đang cất và ở bãi tập; R rút/cất, chuột trái/Q/E đánh, V nhảy, Space lướt, G tương tác. Kiếm & khiên dùng F giữ thế đỡ thử; chưa có giảm sát thương từ địch vì bãi chưa có địch tấn công.
+- Thông số/hoạt ảnh này phục vụ thử nghiệm, không tự chốt combo đầy đủ, cân bằng, cơ chế kỹ năng cuối hoặc kiến trúc nhiệm vụ săn. Trang bị/giáp/pet vẫn chưa có dữ liệu lưu tài khoản.
+- File đang phát triển: **HunDino_DarkJungle_v2_2.rbxlx trên Desktop/game roblox/HunDino**. Source hiện hành ở Documents/ChatGPT/game roblox/HunDino; xem TRAINING_SANCTUARY.md để đọc kết quả kiểm tra và cách cập nhật an toàn. Không dùng bản L0 hoặc đồng bộ cấu hình Rojo cũ vào map mới.
+
+### 25.7. Tiếp tục bản người dùng v2.3 — 08/10/2026
+
+- File làm việc mới: **HunDino_DarkJungle_v2_3.rbxl** tại Desktop/game roblox/HunDino, do người dùng lưu từ v2.2. Tiếp tục nội dung hiện có, không dựng lại map hoặc quay về L0.
+- Giữ bãi tập lớn, bảy vũ khí, giáp/pet mẫu và camera cung lệch vai. Ngắm chuyển mượt, tâm giữa màn hình trùng tia bắn; R cất cung hoặc Shift chạy sẽ hủy ngắm. Menu Esc được nhả chuột.
+- Dùng định dạng Roblox Place `.rbxl` cho bản chỉnh tiếp: bản XML cũ có trường hợp bảng tiếng Việt bị đổi mã khi Studio lưu. Source và hướng dẫn hiện hành ở Documents/ChatGPT/game roblox/HunDino. Mọi thông số vũ khí vẫn chỉ là thử nghiệm.

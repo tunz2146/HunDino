@@ -1,0 +1,16 @@
+{
+  "input": "C:\\Users\\khanh\\OneDrive\\Desktop\\game roblox\\HunDino\\HunDino_DarkJungle_v2_1.rbxlx",
+  "inputSHA256": "a7b69ed72390676b3dc2354ba00d7e9ad1b0719aa6a1f881212c539dec47fd14",
+  "backup": "C:\\Users\\khanh\\OneDrive\\Documents\\ChatGPT\\game roblox\\HunDino\\backups\\v2_1_before_training_a7b69ed72390.rbxlx",
+  "output": "C:\\Users\\khanh\\OneDrive\\Documents\\ChatGPT\\game roblox\\HunDino\\HunDino_DarkJungle_v2_2.rbxlx",
+  "outputSHA256": "04fa7856b722a94b8a9aabf09579084fc83844683c9fad686a7f25e62923a5e1",
+  "trainingSize": [
+    460,
+    420
+  ],
+  "weaponCount": 7,
+  "dummyCount": 7,
+  "validatedTextFields": 62,
+  "repairedEncodingPasses": 11,
+  "lobbyGeometryAndTerrainPreserved": true
+}

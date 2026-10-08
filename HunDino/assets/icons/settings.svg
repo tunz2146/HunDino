@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none" role="img" aria-label="Settings prehistoric gear">
+<defs><linearGradient id="a" x1="54" y1="39" x2="198" y2="211" gradientUnits="userSpaceOnUse"><stop stop-color="#E8D6A9"/><stop offset="1" stop-color="#76694F"/></linearGradient></defs>
+<path d="M114 25h28l5 22q8 2 15 6l19-13 20 20-13 19q4 7 6 15l22 5v28l-22 5q-2 8-6 15l13 19-20 20-19-13q-7 4-15 6l-5 22h-28l-5-22q-8-2-15-6l-19 13-20-20 13-19q-4-7-6-15l-22-5V99l22-5q2-8 6-15L55 60l20-20 19 13q7-4 15-6z" fill="url(#a)" stroke="#30312B" stroke-width="9" stroke-linejoin="round"/>
+<circle cx="128" cy="113" r="51" fill="#BEA77C" stroke="#494336" stroke-width="8"/><circle cx="128" cy="113" r="39" fill="#405B4B" stroke="#E8D3A3" stroke-width="5"/>
+<path d="m116 87-14 42m31-42-14 42m31-42-14 42" stroke="#EAD8A8" stroke-width="8" stroke-linecap="round"/><path d="m116 87-14 42m31-42-14 42m31-42-14 42" stroke="#926A4C" stroke-width="3" stroke-linecap="round"/>
+</svg>

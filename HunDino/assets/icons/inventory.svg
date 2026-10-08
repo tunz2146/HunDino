@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none" role="img" aria-label="Inventory hunter backpack">
+<defs><linearGradient id="a" x1="50" y1="50" x2="195" y2="220" gradientUnits="userSpaceOnUse"><stop stop-color="#789469"/><stop offset="1" stop-color="#29413A"/></linearGradient></defs>
+<path d="M90 59V43q0-17 38-17t38 17v16" stroke="#2D3029" stroke-width="17" stroke-linecap="round"/><path d="M90 49q38-20 76 0" stroke="#D1A66A" stroke-width="8"/>
+<path d="M54 112 36 119v65q2 17 18 18m148-90 18 7v65q-2 17-18 18" fill="#885F3D" stroke="#302B26" stroke-width="8" stroke-linejoin="round"/>
+<path d="M52 97q0-42 40-43h72q40 1 40 43v100q0 29-28 29H80q-28 0-28-29z" fill="url(#a)" stroke="#292F2A" stroke-width="9"/>
+<path d="M73 71q55-17 110 0v40q-55 30-110 0z" fill="#8BA17B" stroke="#303A30" stroke-width="7"/><path d="M98 64v52m60-52v52" stroke="#D4B174" stroke-width="10" stroke-linecap="round"/>
+<path d="M81 156q0-14 14-14h66q14 0 14 14v46q0 13-13 13H94q-13 0-13-13z" fill="#A87544" stroke="#302B26" stroke-width="8"/><path d="M83 151q45 24 90 0" stroke="#D4A76A" stroke-width="5"/>
+<path d="M112 159v27q16 17 32 0v-27" fill="#DEBA73" stroke="#302B26" stroke-width="6"/><path d="M122 167h12v11h-12z" fill="#385340"/>
+</svg>

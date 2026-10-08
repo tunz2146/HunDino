@@ -1,4 +1,12 @@
-# HunDino — sảnh 12 base và bãi tập L0.1
+# HunDino — Dark Jungle và bãi tập
+
+**Map đang phát triển: `HunDino_DarkJungle_v2_3.rbxl`.** Mở bản trong `C:\Users\khanh\OneDrive\Desktop\game roblox\HunDino`. Đây là bản người dùng lưu ngày 08/10/2026, tiếp tục từ v2.2; giữ chữ tiếng Việt khi lưu bằng định dạng Roblox Place `.rbxl`. Bãi tập rộng 460 × 420 studs, có sân võ, bốn làn cung và **bảy loại vũ khí**. Cất vũ khí rồi nhấn **I** để chọn; **R** rút/cất, **V** nhảy, **Space** lướt. Cung có góc ngắm lệch vai, giữ chuột phải để ngắm. Xem [hướng dẫn và kết quả thử](TRAINING_SANCTUARY.md).
+
+**Không đồng bộ `default.project.json` vào Dark Jungle:** cấu hình này dành cho L0, sẽ thay code chuyển khu và điều khiển mới bằng code cũ. Không dựng lại map khi chưa lưu các sửa thủ công sang file riêng.
+
+## Tài liệu bản L0.1 cũ
+
+Các hướng dẫn bên dưới dành riêng cho L0.1, không phải cách cập nhật map Dark Jungle.
 
 File để mở trong **Roblox Studio → File → Open from File**: **HunDino_L0.rbxlx**. Bấm **F5 / Play** để chạy. Đây là bản phát triển từ `HunDino1.rbxl` của bạn; file Desktop được giữ nguyên.
 

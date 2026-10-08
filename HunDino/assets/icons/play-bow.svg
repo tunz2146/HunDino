@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none" role="img" aria-label="Play drawn hunting bow">
+<defs><linearGradient id="a" x1="69" y1="28" x2="112" y2="228" gradientUnits="userSpaceOnUse"><stop stop-color="#DDA75F"/><stop offset=".55" stop-color="#955732"/><stop offset="1" stop-color="#63432E"/></linearGradient></defs>
+<path d="M74 28q96 100 0 200" stroke="#272B26" stroke-width="22" stroke-linecap="round"/><path d="M74 28q96 100 0 200" stroke="url(#a)" stroke-width="14" stroke-linecap="round"/>
+<path d="M75 31 37 128l38 97" stroke="#EBDDB7" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M37 128h170" stroke="#252B28" stroke-width="12" stroke-linecap="round"/><path d="M37 128h170" stroke="#E4B879" stroke-width="5" stroke-linecap="round"/>
+<path d="m195 101 34 27-34 27z" fill="#E9D4A3" stroke="#30312B" stroke-width="7" stroke-linejoin="round"/><path d="m42 128-14-18 31 8 10 10-10 10-31 8z" fill="#65866B" stroke="#30352D" stroke-width="5" stroke-linejoin="round"/>
+<path d="M92 108q-13 18 0 39" stroke="#E9C178" stroke-width="10" stroke-linecap="round"/>
+</svg>
