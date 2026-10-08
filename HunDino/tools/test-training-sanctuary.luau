@@ -8,18 +8,23 @@ test('All seven weapons spend server-defined stamina; reject early repeated atta
  for _,id in weapons.Order do
   for _,action in {'Light','Heavy','Skill'} do
    local s=fresh(id); local kind,spec=rules.attack(config,weapons,s,action,0)
-   assert(kind==action and s.Stamina==100-spec.Cost,id..action)
+   assert(kind==action and s.Stamina==100-rules.staminaCost(config,spec.Cost),id..action)
    assert(not rules.attack(config,weapons,s,action,.01),id..' spam')
-   assert(s.Stamina==100-spec.Cost)
+   assert(s.Stamina==100-rules.staminaCost(config,spec.Cost))
   end
  end
 end)
-test('Only hammer has the existing N-H-K finisher',function()
+test('Every weapon has two distinct server-resolved finishers',function()
+ local keys={L='Light',H='Heavy',S='Skill'}
  for _,id in weapons.Order do
-  local s=fresh(id); local _,a=rules.attack(config,weapons,s,'Light',0)
-  local t=a.Duration+.01; local _,b=rules.attack(config,weapons,s,'Heavy',t)
-  local kind=rules.attack(config,weapons,s,'Skill',t+b.Duration+.01)
-  assert(kind==(if id=='Hammer' then 'Finisher' else 'Skill'),id)
+  assert(#weapons[id].Combos==2)
+  for _,combo in weapons[id].Combos do
+   local s=fresh(id); local now=0; local kind
+   for letter in combo.Input:gmatch('.') do
+    kind=rules.attack(config,weapons,s,keys[letter],now); now=s.BusyUntil+.02
+   end
+   assert(kind==combo.Attack,id..combo.Input)
+  end
  end
 end)
 test('Equip requires valid ID, training, sheathed, idle state',function()
@@ -72,6 +77,8 @@ test('UTF-8 UI, anchored geometry and embedded code compile',function()
   return a==b
  end
  assert(same(shared.Weapons.Source,'src/dark-jungle/Weapons.luau'))
+ assert(same(shared.TrainingRules.Source,'src/dark-jungle/TrainingRules.luau'))
+ assert(same(shared.TrainingConfig.Source,'src/shared/TrainingConfig.luau'))
  assert(same(g:GetService('ServerScriptService').HunDinoTraining.Source,'src/dark-jungle/Training.server.luau'))
  assert(same(g:GetService('StarterPlayer').StarterPlayerScripts.HunDinoTraining.Source,'src/dark-jungle/Training.client.luau'))
 end)

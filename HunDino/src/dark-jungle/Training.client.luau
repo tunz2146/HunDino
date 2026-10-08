@@ -59,11 +59,11 @@ local function announce(message)
 	task.delay(5, function() if noticeId == id then notice.Visible = false end end)
 end
 local panel = Instance.new("Frame"); panel.Name="WeaponSelection"; panel.AnchorPoint=Vector2.new(.5,.5)
-panel.Position=UDim2.fromScale(.5,.5); panel.Size=UDim2.fromOffset(650,510)
+panel.Position=UDim2.fromScale(.5,.5); panel.Size=UDim2.fromOffset(650,656)
 panel.BackgroundColor3=Color3.fromRGB(17,34,32); panel.Visible=false; panel.Parent=gui
 local corner=Instance.new("UICorner"); corner.CornerRadius=UDim.new(0,12); corner.Parent=panel
 local scale=Instance.new("UIScale"); scale.Parent=panel
-local function resizePanel() local size=workspace.CurrentCamera.ViewportSize; scale.Scale=math.min(1,(size.X-32)/650,(size.Y-60)/510) end
+local function resizePanel() local size=workspace.CurrentCamera.ViewportSize; scale.Scale=math.min(1,(size.X-32)/650,(size.Y-60)/656) end
 workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resizePanel); resizePanel()
 local function panelText(value,pos,size,textSize)
 	local t=Instance.new("TextLabel"); t.BackgroundTransparency=1; t.Text=value; t.TextWrapped=true
@@ -74,20 +74,32 @@ panelText("Chọn một vũ khí • Nhấn R để rút sau khi trang bị",UDi
 local close=Instance.new("TextButton"); close.Name="Close"; close.Text="×"; close.TextSize=25; close.Font=Enum.Font.GothamMedium
 close.Size=UDim2.fromOffset(40,38); close.Position=UDim2.new(1,-48,0,12); close.BackgroundTransparency=1; close.TextColor3=Color3.fromRGB(236,224,192); close.Parent=panel
 close.Activated:Connect(function() panel.Visible=false end)
+local function recipe(input)
+ local key={L="Trái",H="Q",S="E"}; local parts={}
+ for letter in input:gmatch(".") do table.insert(parts,key[letter]) end
+ return table.concat(parts," → ")
+end
+local function recipes(weapon)
+ local lines={}
+ for _,combo in weapon.Combos do table.insert(lines,weapon.Attacks[combo.Attack].Name..": "..recipe(combo.Input)) end
+ return table.concat(lines,"\n")
+end
+local comboHUD=text("ComboGuide",UDim2.new(0,20,.5,-90),UDim2.fromOffset(330,168),"",14)
+comboHUD.Visible=false
 local buttons={}
 for i,id in Weapons.Order do
 	local w=Weapons[id]; local button=Instance.new("TextButton"); button.Name=id; button.Text=""
-	button.Size=UDim2.fromOffset(298,83); button.Position=UDim2.fromOffset(20+((i-1)%2)*312,100+math.floor((i-1)/2)*94)
+	button.Size=UDim2.fromOffset(298,120); button.Position=UDim2.fromOffset(20+((i-1)%2)*312,100+math.floor((i-1)/2)*130)
 	button.BackgroundColor3=Color3.fromRGB(35,58,53); button.AutoButtonColor=true; button.Parent=panel
 	local c=Instance.new("UICorner"); c.CornerRadius=UDim.new(0,7); c.Parent=button
 	local title=Instance.new("TextLabel"); title.Name="Name"; title.BackgroundTransparency=1; title.Size=UDim2.new(1,-20,0,28); title.Position=UDim2.fromOffset(10,7)
 	title.Font=Enum.Font.GothamBold; title.TextSize=18; title.TextColor3=Color3.fromRGB(239,228,195); title.Text=w.Name; title.Parent=button
-	local desc=Instance.new("TextLabel"); desc.BackgroundTransparency=1; desc.Size=UDim2.new(1,-20,0,38); desc.Position=UDim2.fromOffset(10,37)
-	desc.Font=Enum.Font.GothamMedium; desc.TextSize=13; desc.TextWrapped=true; desc.TextColor3=Color3.fromRGB(178,205,190); desc.Text=w.Description; desc.Parent=button
+	local desc=Instance.new("TextLabel"); desc.BackgroundTransparency=1; desc.Size=UDim2.new(1,-20,0,77); desc.Position=UDim2.fromOffset(10,37)
+	desc.Font=Enum.Font.GothamMedium; desc.TextSize=12; desc.TextWrapped=true; desc.TextColor3=Color3.fromRGB(178,205,190); desc.Text=recipes(w); desc.Parent=button
 	button.Activated:Connect(function() remote:FireServer("EquipWeapon",id); panel.Visible=false end)
 	buttons[id]=button
 end
-panelText("I: đóng túi • Có thể chọn tại từng giá bằng G",UDim2.fromOffset(20,474),UDim2.fromOffset(610,25),14)
+panelText("Trái = chuột trái • Nối sau mỗi đòn, trong 1,35 giây\nI: đóng túi • G: chọn tại giá • Tiêu hao thể lực còn 30%",UDim2.fromOffset(20,616),UDim2.fromOffset(610,34),13)
 local openButton=Instance.new("TextButton"); openButton.Name="OpenWeapons"; openButton.Text="I  •  CHỌN VŨ KHÍ"
 openButton.Font=Enum.Font.GothamBold; openButton.TextSize=14; openButton.TextColor3=Color3.fromRGB(236,224,189)
 openButton.BackgroundColor3=Color3.fromRGB(32,64,53); openButton.Position=UDim2.new(1,-240,0,85); openButton.Size=UDim2.fromOffset(220,38); openButton.Parent=gui
@@ -230,6 +242,16 @@ local function refresh()
 	openButton.Visible=inTraining==true
 	if not inTraining then panel.Visible=false end
 	local id=player:GetAttribute("WeaponId") or "Hammer"; local weapon=Weapons[id]
+	local chain=player:GetAttribute("ComboChain") or ""
+	comboHUD.Visible=inTraining==true and player:GetAttribute("Drawn")==true and not panel.Visible
+	local nextKeys={}
+	for _,combo in weapon.Combos do
+		if #chain>0 and combo.Input:sub(1,#chain)==chain then
+			table.insert(nextKeys,recipe(combo.Input:sub(#chain+1)))
+		end
+	end
+	comboHUD.Text="COMBO • "..weapon.Name.."\n"..recipes(weapon)
+		.."\n"..(if #chain>0 then "Đã nối: "..recipe(chain).." | Tiếp: "..table.concat(nextKeys," / ") else "Nối sau mỗi đòn, trong 1,35 giây")
 	for key,button in buttons do button.BackgroundColor3=if key==id then Color3.fromRGB(56,100,78) else Color3.fromRGB(35,58,53) end
 	title.Text = "HUNDINO • " .. (if inTraining then "BÃI LUYỆN TẬP" else "TRẠI THỢ SĂN")
 		.. "\nBase " .. tostring(player:GetAttribute("BaseId") or "…") .. " / 12"
@@ -241,7 +263,7 @@ local function refresh()
 	help.Text="R: Rút / cất • I: Chọn vũ khí\nChuột trái: Đánh thường • Q: Đánh mạnh\nE: "..weapon.Skill.."\nV: Nhảy • Space: Lướt\nShift: Chạy • Ctrl: Ghim tâm • G: Tương tác"
 		..(if id=="Bow" then "\nGiữ chuột phải: Ngắm"..(if player:GetAttribute("BowBoost") then " • MŨI TÊN CƯỜNG HÓA" else "") elseif id=="SwordShield" then "\nF: Giữ thế đỡ" else "")
 end
-for _, attr in {"InTraining", "BaseId", "Stamina", "Drawn", "TrainingArmor", "TrainingDamage", "PetDamage", "WeaponId", "Blocking", "BowBoost"} do
+for _, attr in {"InTraining", "BaseId", "Stamina", "Drawn", "TrainingArmor", "TrainingDamage", "PetDamage", "WeaponId", "Blocking", "BowBoost", "ComboChain"} do
 	player:GetAttributeChangedSignal(attr):Connect(refresh)
 end
 refresh()
@@ -255,7 +277,25 @@ remote.OnClientEvent:Connect(function(event, a, b, c)
 			hum:ChangeState(Enum.HumanoidStateType.Jumping)
 		end
 	elseif event == "Attack" then
-		if a == "Finisher" then announce("COMBO BÚA • ĐÒN KẾT THÚC!") end
+		if b then announce("COMBO • "..b) end
+	elseif event == "ComboFX" then
+		-- Short local trails make the finisher readable without adding collision.
+		local color=if b=="Slam" then Color3.fromRGB(255,191,89) else Color3.fromRGB(113,235,214)
+		local count=if b=="Thrust" then 1 else 8
+		for i=1,count do
+			local effect=Instance.new("Part"); effect.Name="ComboTrail"; effect.Anchored=true
+			effect.CanCollide=false; effect.CanQuery=false; effect.CanTouch=false; effect.Material=Enum.Material.Neon
+			effect.Color=color; effect.Transparency=.25
+			if count==1 then effect.Size=Vector3.new(.14,.14,c); effect.CFrame=a*CFrame.new(0,0,-c/2)
+			else
+				local full=b=="Spin" or b=="Slam"
+				local angle=if full then i*math.pi/4 else -math.pi/2+(i-1)*math.pi/7
+				effect.Size=Vector3.new(c*.45,.12,.16)
+				effect.CFrame=a*CFrame.Angles(0,angle,0)*CFrame.new(0,if b=="Slam" then -2 else 0,-c*.7)
+			end
+			effect.Parent=workspace
+			TweenService:Create(effect,TweenInfo.new(.22),{Transparency=1}):Play(); Debris:AddItem(effect,.24)
+		end
 	elseif event == "Shot" then
 		local distance=(b-a).Magnitude; if distance<.01 then return end
 		local arrow=Instance.new("Part"); arrow.Name="TrainingArrow"; arrow.Anchored=true; arrow.CanCollide=false; arrow.CanQuery=false; arrow.CanTouch=false

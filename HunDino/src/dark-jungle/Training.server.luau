@@ -42,6 +42,7 @@ local function sync(s)
 	p:SetAttribute("TrainingDamage", s.Damage)
 	p:SetAttribute("PetDamage", s.PetDamage)
 	p:SetAttribute("ComboStep", if os.clock() <= s.ComboUntil then s.ComboStep else 0)
+	p:SetAttribute("ComboChain", if os.clock() <= s.ComboUntil then s.ComboChain or "" else "")
 end
 local function message(s, text)
 	remote:FireClient(s.Player, "Message", text)
@@ -109,7 +110,7 @@ local function equipWeapon(s,id)
 	if not Rules.canEquip(s,Weapons,id,os.clock()) then
 		message(s,"Cất vũ khí bằng R và dừng động tác trước khi đổi trong bãi tập."); return
 	end
-	s.WeaponId=id; s.ComboStep=0; s.ComboUntil=0; s.LastTarget=nil; s.BowBoostUntil=0; s.Aiming=false
+	s.WeaponId=id; Rules.clearCombo(s); s.LastTarget=nil; s.BowBoostUntil=0; s.Aiming=false
 	s.BusyUntil=os.clock()+.3; s.WantSprint=false
 	createWeapon(s); sync(s); message(s,"Đã chọn "..Weapons[id].Name..". Nhấn R để rút.")
 end
@@ -170,19 +171,25 @@ local function attack(s, action, direction)
 	local character = s.Character
 	local boosted=weapon.Ranged and now<s.BowBoostUntil
 	if weapon.Ranged then s.BowBoostUntil=0 end
-	remote:FireClient(s.Player, "Attack", kind, weapon.Skill)
+	remote:FireClient(s.Player, "Attack", kind, spec.Name)
+	-- A serial prevents a late recovery callback from overwriting the next strike.
+	s.AttackSerial=(s.AttackSerial or 0)+1; local serial=s.AttackSerial
 	local windup = s.RestPose * CFrame.Angles(math.rad(100), 0, math.rad(-30))
+	if spec.Style=="Thrust" then windup=s.RestPose*CFrame.new(0,0,.7)*CFrame.Angles(math.pi/2,0,0)
+	elseif spec.Style=="Spin" or spec.Style=="Sweep" then windup=s.RestPose*CFrame.Angles(0,-1.4,math.pi/2) end
 	if weapon.Ranged then windup=s.RestPose*CFrame.new(0,0,.25) end
 	TweenService:Create(s.Grip, TweenInfo.new(spec.Windup), {C0 = windup}):Play()
 	task.delay(spec.Windup, function()
-		if not alive(s) or s.Character ~= character or states[s.Player] ~= s then return end
+		if not alive(s) or s.Character ~= character or states[s.Player] ~= s or s.AttackSerial~=serial then return end
 		if weapon.Ranged then
 			TweenService:Create(s.Grip,TweenInfo.new(.16),{C0=s.RestPose}):Play()
 			local params=RaycastParams.new(); params.FilterType=Enum.RaycastFilterType.Exclude
 			params.FilterDescendantsInstances={s.Character,pets}
-			local origin=s.Root.Position+Vector3.new(0,.8,0)
 			for i=1,spec.Shots or 1 do
-				local angle=if i==1 then 0 elseif i==2 then math.rad(-4) else math.rad(4)
+				if i>1 and spec.ShotInterval then task.wait(spec.ShotInterval) end
+				if not alive(s) or s.Character~=character or states[s.Player]~=s or s.AttackSerial~=serial then return end
+				local origin=s.Root.Position+Vector3.new(0,.8,0)
+				local angle=math.rad(math.ceil((i-1)/2)*(if i%2==0 then -1 else 1)*(spec.Spread or 4))
 				local aim=CFrame.fromAxisAngle(Vector3.yAxis,angle):VectorToWorldSpace(direction)
 				local result=workspace:Raycast(origin,aim*spec.Range,params)
 				local endpoint=if result then result.Position else origin+aim*spec.Range
@@ -197,9 +204,14 @@ local function attack(s, action, direction)
 			return
 		end
 		for n=1,spec.Hits or 1 do
-			if n>1 then task.wait(.13) end
-			if not alive(s) or s.Character~=character or states[s.Player]~=s then return end
-			TweenService:Create(s.Grip, TweenInfo.new(.1), {C0=s.RestPose*CFrame.Angles(math.rad(-95),0,if n%2==0 then -.4 else .4)}):Play()
+			if n>1 then task.wait(spec.HitInterval or .13) end
+			if not alive(s) or s.Character~=character or states[s.Player]~=s or s.AttackSerial~=serial then return end
+			local pose=s.RestPose*CFrame.Angles(math.rad(-95),0,if n%2==0 then -.4 else .4)
+			if spec.Style=="Thrust" then pose=s.RestPose*CFrame.new(0,0,-2)*CFrame.Angles(math.pi/2,0,0)
+			elseif spec.Style=="Spin" or spec.Style=="Sweep" then pose=s.RestPose*CFrame.Angles(0,if n%2==0 then -1.5 else 1.5,math.pi/2) end
+			TweenService:Create(s.Grip, TweenInfo.new(.1), {C0=pose}):Play()
+			if spec.Style=="Shield" and s.OffGrip then TweenService:Create(s.OffGrip,TweenInfo.new(.1),{C0=s.OffRest*CFrame.new(.4,.3,-1.2)}):Play() end
+			if spec.Name then remote:FireAllClients("ComboFX",s.Root.CFrame,spec.Style,spec.Range) end
 			if s.OffGrip and s.WeaponId=="DualDaggers" then TweenService:Create(s.OffGrip,TweenInfo.new(.1),{C0=s.OffRest*CFrame.Angles(-1.5,0,if n%2==0 then .4 else -.4)}):Play() end
 			for _, dummy in dummies:GetChildren() do
 				local delta = dummy.Target.Position - s.Root.Position
@@ -212,7 +224,7 @@ local function attack(s, action, direction)
 		end
 	end)
 	task.delay(spec.Duration, function()
-		if states[s.Player] ~= s or not alive(s) or s.Character ~= character then return end
+		if states[s.Player] ~= s or not alive(s) or s.Character ~= character or s.AttackSerial~=serial then return end
 		TweenService:Create(s.Grip, TweenInfo.new(0.12), {C0 = s.RestPose}):Play()
 		if s.OffGrip then TweenService:Create(s.OffGrip,TweenInfo.new(.12),{C0=s.OffRest}):Play() end
 		s.Humanoid.AutoRotate = true
@@ -221,7 +233,7 @@ local function attack(s, action, direction)
 end
 local function toggleDraw(s, target)
 	if os.clock() < s.BusyUntil then return end
-	s.BusyUntil = os.clock() + Config.SheatheTime; s.ComboStep = 0; s.Sprinting = false
+	s.BusyUntil = os.clock() + Config.SheatheTime; Rules.clearCombo(s); s.Sprinting = false
 	s.Blocking=false; s.BowBoostUntil=0; s.Aiming=false; weaponPose(s)
 	s.ChangeDraw = target
 	message(s, (if target then "Đang rút " else "Đang cất ")..Weapons[s.WeaponId].Name.."…")
@@ -230,7 +242,7 @@ local function travel(s, destination)
 	if s.Travelling then return end
 	if os.clock() < s.BusyUntil then return end
 	s.InTraining = destination == "Training"; s.Drawn = false; s.WantSprint = false; s.Sprinting = false
-	s.ChangeDraw = nil; s.ComboStep = 0; s.LastTarget = nil; s.BusyUntil = os.clock() + 0.5
+	s.ChangeDraw = nil; Rules.clearCombo(s); s.LastTarget = nil; s.BusyUntil = os.clock() + 0.5
 	s.Blocking=false; s.Aiming=false; s.BowBoostUntil=0
 	s.Humanoid.AutoRotate = true; weaponPose(s)
 	local cf = if s.InTraining then map.Training.Arrival.CFrame * CFrame.Angles(0, 0, 0)
@@ -265,7 +277,7 @@ bindPrompt(map.Training.EquipmentRack, function(s)
 end)
 bindPrompt(map.Training.ResetPost, function(s)
 	if s.Drawn then message(s, "Cất vũ khí bằng R trước khi tương tác."); return end
-	s.Damage = 0; s.PetDamage = 0; s.Stamina = Config.MaxStamina; s.ComboStep = 0; s.LastTarget = nil
+	s.Damage = 0; s.PetDamage = 0; s.Stamina = Config.MaxStamina; Rules.clearCombo(s); s.LastTarget = nil
 	s.Humanoid.Health = s.Humanoid.MaxHealth; s.BusyUntil = os.clock() + 0.3; sync(s)
 	message(s, "Đã xóa thống kê của bạn. Bắt đầu lượt tập mới!")
 end)
@@ -286,24 +298,24 @@ remote.OnServerEvent:Connect(function(player, action, value)
 	elseif action == "Guard" then
 		if value==false then s.Blocking=false; weaponPose(s)
 		elseif value==true and s.WeaponId=="SwordShield" and s.Drawn and now>=s.BusyUntil and s.Stamina>0 then
-			s.Blocking=true; s.Sprinting=false; s.WantSprint=false; s.ComboStep=0; weaponPose(s)
+			s.Blocking=true; s.Sprinting=false; s.WantSprint=false; Rules.clearCombo(s); weaponPose(s)
 		end
 		sync(s)
 	elseif action == "Sprint" then
 		if typeof(value) ~= "boolean" then return end
-		s.WantSprint = value; if value then s.Blocking=false; weaponPose(s) end
+		s.WantSprint = value; if value then Rules.clearCombo(s); s.Blocking=false; weaponPose(s) end
 		if not value then s.Sprinting = false end
 	elseif action == "Draw" then
 		s.WantSprint = false; toggleDraw(s, not s.Drawn)
 	elseif action == "Light" or action == "Heavy" or action == "Skill" then
 		attack(s, action, value)
 	elseif action == "Jump" and not s.Blocking and now >= s.BusyUntil and grounded(s) and now - s.LastJumpAt >= 0.45 then
-		s.LastJumpAt = now; s.BusyUntil = now + 0.15
+		Rules.clearCombo(s); s.LastJumpAt = now; s.BusyUntil = now + 0.15
 		remote:FireClient(player, "Jump", s.Character)
 	elseif action == "Dodge" and not s.Blocking and directionOK(value) and now >= s.BusyUntil and grounded(s)
-		and now - s.LastJumpAt >= 0.45 and s.Stamina >= Config.DodgeCost then
-		s.Stamina -= Config.DodgeCost; s.LastSpend = now + Config.DodgeTime
-		s.ComboStep = 0; s.BusyUntil = now + Config.DodgeTime; s.Sprinting = false
+		and now - s.LastJumpAt >= 0.45 and s.Stamina >= Rules.staminaCost(Config,Config.DodgeCost) then
+		s.Stamina -= Rules.staminaCost(Config,Config.DodgeCost); s.LastSpend = now + Config.DodgeTime
+		Rules.clearCombo(s); s.BusyUntil = now + Config.DodgeTime; s.Sprinting = false
 		if s.WeaponId=="Bow" and s.Drawn and s.Aiming then s.BowBoostUntil=now+4 end
 		local a = Instance.new("Attachment"); a.Name = "DodgeAttachment"; a.Parent = s.Root
 		local velocity = Instance.new("LinearVelocity"); velocity.Name = "DodgeVelocity"; velocity.Attachment0 = a
@@ -371,11 +383,11 @@ RunService.Heartbeat:Connect(function(dt)
 		s.Sprinting = s.WantSprint and not s.Drawn and now >= s.BusyUntil and s.Stamina > 0
 			and s.Humanoid.MoveDirection.Magnitude > 0.1
 		if s.Sprinting then
-			s.Stamina = math.max(0, s.Stamina - Config.SprintCost * dt); s.LastSpend = now
+			s.Stamina = math.max(0, s.Stamina - Rules.staminaCost(Config,Config.SprintCost) * dt); s.LastSpend = now
 			if s.Stamina == 0 then s.WantSprint = false; s.Sprinting = false end
 		end
 		if s.Blocking then
-			s.Stamina=math.max(0,s.Stamina-4*dt); s.LastSpend=now
+			s.Stamina=math.max(0,s.Stamina-Rules.staminaCost(Config,Config.GuardCost)*dt); s.LastSpend=now
 			if s.Stamina==0 then s.Blocking=false; weaponPose(s) end
 		end
 		Rules.regenerate(Config, s, now, dt)

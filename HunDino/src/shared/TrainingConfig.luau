@@ -1,6 +1,9 @@
 -- Các giá trị L0 là cấu hình thử, không phải cân bằng cuối của game.
 return {
-	Version = "L0.1",
+	Version = "v2.3-combos",
+	-- Costs here and in Weapons are base costs; scale once when spending.
+	StaminaCostScale = 0.30,
+	GuardCost = 4,
 	LobbyCapacity = 12,
 	MaxStamina = 100,
 	StaminaRegen = 20,
@@ -12,7 +15,7 @@ return {
 	DodgeCost = 20,
 	DodgeTime = 0.4,
 	DodgeSpeed = 34,
-	ComboWindow = 1,
+	ComboWindow = 1.35,
 	DummyHealth = 1000,
 	PetDamage = 12,
 	PetInterval = 4,
