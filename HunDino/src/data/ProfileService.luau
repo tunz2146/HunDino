@@ -11,7 +11,7 @@ local Economy=require(game.ServerScriptService.HuntingRuntime.HuntEconomyRules)
 local Service={}
 Service.__index=Service
 local SLOTS={"Head","Chest","Arms","Waist","Legs"}
-local PREFS={ShowComboGuide=true,ShowDamage=true,ShowComboFX=true,AimSensitivity=true}
+local PREFS={ShowComboGuide=true,ShowDamage=true,ShowComboFX=true,AimSensitivity=true,AutoBowAim=true,AutoBowFire=true,SwapBowButtons=true,MeleeStance=true,RangedStance=true,KatanaCarry=true}
 local TEXT={
  Loading="Đang tải tiến trình tài khoản…",Loaded="Đã tải tiến trình.",
  Dirty="Có thay đổi, đang chờ lưu…",Saving="Đang lưu tiến trình…",Saved="Đã lưu tiến trình.",
@@ -297,6 +297,11 @@ function Service:Request(p,action,key,value)
   if not self:CanMutate(p) or not PREFS[key] then return end
   if key=="AimSensitivity" then
    if value~=1 and value~=.75 and value~=.5 then return end
+  elseif key=="KatanaCarry" then
+   if type(value)~="number" or value%1~=0 or value<1 or value>2 or p:GetAttribute("Drawn")==true or p:GetAttribute("WeaponHandling")==true then return end
+  elseif key=="MeleeStance" or key=="RangedStance" then
+   local limit=if key=="MeleeStance" then 6 else 3
+   if type(value)~="number" or value%1~=0 or value<1 or value>limit then return end
   elseif type(value)~="boolean" then return end
   if os.clock()-(e.LastPreference or -math.huge)<.12 then return end
   e.LastPreference=os.clock();set(p,key,value)

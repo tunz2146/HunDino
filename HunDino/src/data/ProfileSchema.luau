@@ -9,6 +9,7 @@ local WEAPONS = {Hammer=true, SwordShield=true, Katana=true, Glaive=true,
 	DualDaggers=true, Bow=true, GreatAxe=true}
 local ARMORS = {Training=true, Leather=true, Metal=true, Bone=true, None=true}
 local SLOTS = {"Head", "Chest", "Arms", "Waist", "Legs"}
+local CONTROL_PREFS={AutoBowAim=true,AutoBowFire=false,SwapBowButtons=false,MeleeStance=1,RangedStance=1,KatanaCarry=1}
 local FIELDS = {DataVersion=true, Economy=true, Loadout=true, Preferences=true,
 	Pet=true, Statistics=true, CreatedAt=true, UpdatedAt=true}
 
@@ -104,7 +105,7 @@ function ProfileSchema.new(economyRules)
 		assert(integer(nowUnix, MAX_TIME), "Default requires a Unix timestamp")
 		return {DataVersion=VERSION, Economy=economyRules.new(),
 			Loadout={WeaponId="Hammer", PetWeaponId="Hammer", PlayerArmor=armor("Training"), PetArmor=armor("Metal")},
-			Preferences={ShowComboGuide=true, ShowDamage=true, ShowComboFX=true, AimSensitivity=1},
+			Preferences={ShowComboGuide=true, ShowDamage=true, ShowComboFX=true, AimSensitivity=1,AutoBowAim=true,AutoBowFire=false,SwapBowButtons=false,MeleeStance=1,RangedStance=1,KatanaCarry=1},
 			Pet={HealReadyAt=0}, Statistics={HuntsCompleted=0, HuntsFailed=0, Captures=0},
 			CreatedAt=nowUnix, UpdatedAt=nowUnix}
 	end
@@ -122,17 +123,22 @@ function ProfileSchema.new(economyRules)
 		if not exactFields(loadout, {"WeaponId", "PetWeaponId", "PlayerArmor", "PetArmor"})
 			or not WEAPONS[loadout.WeaponId] or not WEAPONS[loadout.PetWeaponId]
 			or not validArmor(loadout.PlayerArmor) or not validArmor(loadout.PetArmor) then return nil, "InvalidLoadout" end
-		local preferences = data.Preferences
-		if not exactFields(preferences, {"ShowComboGuide", "ShowDamage", "ShowComboFX", "AimSensitivity"})
-			or type(preferences.ShowComboGuide) ~= "boolean" or type(preferences.ShowDamage) ~= "boolean"
-			or type(preferences.ShowComboFX) ~= "boolean"
-			or (preferences.AimSensitivity ~= 0.5 and preferences.AimSensitivity ~= 0.75 and preferences.AimSensitivity ~= 1) then
-			return nil, "InvalidPreferences"
-		end
+		local preferences = clone(data.Preferences)
+  if type(preferences)~="table" then return nil,"InvalidPreferences" end
+  for key,value in CONTROL_PREFS do if preferences[key]==nil then preferences[key]=value end end
+  if not exactFields(preferences,{"ShowComboGuide","ShowDamage","ShowComboFX","AimSensitivity","AutoBowAim","AutoBowFire","SwapBowButtons","MeleeStance","RangedStance","KatanaCarry"})
+   or type(preferences.ShowComboGuide)~="boolean" or type(preferences.ShowDamage)~="boolean" or type(preferences.ShowComboFX)~="boolean"
+   or type(preferences.AutoBowAim)~="boolean" or type(preferences.AutoBowFire)~="boolean" or type(preferences.SwapBowButtons)~="boolean"
+   or (preferences.AimSensitivity~=.5 and preferences.AimSensitivity~=.75 and preferences.AimSensitivity~=1)
+   or not integer(preferences.MeleeStance,6) or preferences.MeleeStance<1
+   or not integer(preferences.RangedStance,3) or preferences.RangedStance<1
+   or not integer(preferences.KatanaCarry,2) or preferences.KatanaCarry<1 then return nil,"InvalidPreferences" end
+
 		if not exactFields(data.Pet, {"HealReadyAt"}) or not integer(data.Pet.HealReadyAt, MAX_TIME) then return nil, "InvalidPet" end
 		if not exactFields(data.Statistics, {"HuntsCompleted", "HuntsFailed", "Captures"}) then return nil, "InvalidStatistics" end
 		for _, value in data.Statistics do if not integer(value, MAX_COUNT) then return nil, "InvalidStatistics" end end
 		local normalized = clone(data)
+  normalized.Preferences=preferences
 		if not decodeOperations(normalized.Economy) then return nil, "InvalidOperationReceipts" end
 		if not decodeDisplaySlots(normalized.Economy) then return nil, "InvalidDisplaySlots" end
 		local economy, reason = economyRules.new(normalized.Economy)

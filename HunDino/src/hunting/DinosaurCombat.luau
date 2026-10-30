@@ -54,9 +54,10 @@ function Combat.new(model, forest, mapConfig, session, options)
 		_blockedFor = 0, _publishElapsed = 0,
 	}, Combat)
 	assert(finite(self.Settings.MaxHealth) and self.Settings.MaxHealth > 0, "MaxHealth must be positive")
-	for _, key in {"Health", "MaxHealth", "CombatState", "CombatTargetUserId", "AttackReady", "AttackSequence", "AttackPhase", "AttackHits", "DinosaurDead", "Weak", "Trapped", "Captured", "TrapUntil", "CapturePoint"} do
+	for _, key in {"Health", "MaxHealth", "CombatState", "CombatTargetUserId", "AttackReady", "AttackSequence", "AttackPhase", "AttackHits", "DinosaurDead", "Weak", "Trapped", "Captured", "TrapUntil", "CapturePoint", "CombatFaction", "CombatTargetKind"} do
 		self._original[key] = { value = model:GetAttribute(key) }
 	end
+	if model:GetAttribute("CombatFaction")==nil then model:SetAttribute("CombatFaction","Wildlife") end
 	if model:GetAttribute("ShowCombatHitboxes") == nil then model:SetAttribute("ShowCombatHitboxes", false) end
 	local folder = Instance.new("Folder"); folder.Name = "CombatHitboxes"; folder.Parent = model; self._folder = folder
 	-- The lower-leg volumes reach the feet. A player can hit the animal from the
@@ -112,6 +113,7 @@ function Combat:_publish()
 	local model = self.Model
 	model:SetAttribute("Health", self._health); model:SetAttribute("MaxHealth", self.Settings.MaxHealth)
 	model:SetAttribute("CombatState", self._state)
+ model:SetAttribute("CombatTargetKind",self._targetKind)
 	model:SetAttribute("CombatTargetUserId", if self._target then self._target.UserId else 0)
 	model:SetAttribute("AttackPhase", self._phase); model:SetAttribute("AttackSequence", self._attackSequence)
 	model:SetAttribute("AttackHits", self._attackHits); model:SetAttribute("DinosaurDead", self._health <= 0)
@@ -146,6 +148,7 @@ end
 function Combat:_patrol() return self.Session and self.Session.Patrol end
 function Combat:_character(player)
 	if typeof(player) ~= "Instance" or not player:IsA("Player") or player:GetAttribute("InHunting") ~= true then return nil end
+	if Defaults.Allied(self.Model,player) then return nil end
 	local questOwner = self.Model:GetAttribute("QuestOwnerUserId")
 	if questOwner and (player.UserId ~= questOwner or self.Model:GetAttribute("QuestCombatAllowed") == false) then return nil end
 	if player:GetAttribute("AdminFlying")==true then return nil end
@@ -154,6 +157,8 @@ function Combat:_character(player)
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	if not character or not character.Parent or not humanoid or humanoid.Health <= 0 or not root or not root:IsA("BasePart") then return nil end
+ local unrestricted=self.Session and self.Session.Patrol and self.Session.Patrol._unrestrictedRoam
+ if not unrestricted then
 	local offset = self.MapConfig.WorldOffset or self.Forest:GetAttribute("WorldOffset") or Vector3.zero
 	local p = root.Position - offset
 	local limitX = (self.MapConfig.MapWidth or self.MapConfig.MapSize or 1620) * .5 + 105
@@ -164,7 +169,19 @@ function Combat:_character(player)
 	local node = camp and camp:FindFirstChild("Node")
 	local safeRadius = self.MapConfig.CampSafeRadius or ((camp and camp:GetAttribute("Width") or 180) * .5 + self.Settings.CampMargin)
 	if node and (flat(root.Position - node.Position)).Magnitude < safeRadius then return nil end
+ end
 	return character, humanoid, root
+end
+function Combat:_victim(player)
+ local character,humanoid,root=self:_character(player)
+ if not character then return nil end
+ if self._targetKind=="Pet" then
+  local folder=workspace:FindFirstChild("TrainingPets")
+  local pet=folder and folder:FindFirstChild("Pet_"..player.UserId)
+  if not pet or not pet.PrimaryPart or (pet:GetAttribute("PetHealth") or 0)<=0 or Defaults.Allied(self.Model,pet) then return nil end
+  return pet,nil,pet.PrimaryPart
+ end
+ return character,humanoid,root
 end
 function Combat:_lineOfSight(origin, destination, character)
 	local delta = destination - origin
@@ -269,9 +286,10 @@ function Combat:Damage(player, damage, point, token, source)
 	else
 		local patrol = self:_patrol()
 		if patrol then
-			if self._target ~= player then self:_cancelAttack() end
+			local kind=if source=="Pet" then "Pet" else "Player"
+   if self._target~=player or self._targetKind~=kind then self:_cancelAttack() end
 			if patrol:BeginCombat() ~= false then
-				self._target = player; self._state = "Chasing"; self._blockedFor = 0
+				self._target = player;self._targetKind=kind; self._state = "Chasing"; self._blockedFor = 0
 			end
 		end
 	end
@@ -286,7 +304,7 @@ function Combat:_cancelAttack()
 end
 function Combat:_clearTarget(state)
 	local wasTarget = self._target ~= nil
-	self._target = nil; self._blockedFor = 0
+	self._target = nil;self._targetKind=nil; self._blockedFor = 0
 	self:_cancelAttack()
 	if wasTarget then local patrol = self:_patrol(); if patrol then patrol:EndCombat() end end
 	self._state = state or (if wasTarget then "Returning" else "Idle")
@@ -366,7 +384,7 @@ function Combat:_updateAttackBox()
 	return support, direction, cf
 end
 function Combat:_canBite(player)
-	local character, humanoid, root = self:_character(player)
+	local character, humanoid, root = self:_victim(player)
 	if not character then return false end
 	local support, forward, cf = self:_updateAttackBox()
 	local offset = flat(root.Position - support)
@@ -399,7 +417,7 @@ function Combat:_attackStep()
 	if self._phase == "Active" then
 		if not self._attackHit and self._attackVictim == self._target then
 			local valid, humanoid = self:_canBite(self._attackVictim)
-			if valid then
+			if valid and self._targetKind~="Pet" then
 				self._attackHit = true; self._attackHits += 1
 				if self._damagePlayer then self._damagePlayer(self._attackVictim, self.Settings.BiteDamage, self.Model)
 				else humanoid:TakeDamage(self.Settings.BiteDamage) end
@@ -408,9 +426,9 @@ function Combat:_attackStep()
 		end
 		-- Pets use the same short, server-owned bite volume and sequence. The
 		-- companion controller checks its body, line of sight and one hit per bite.
-		if self._damagePets and self._phase == "Active" and self._health > 0 then
+		if self._damagePets and self._targetKind=="Pet" and self._phase == "Active" and self._health > 0 then
 			self._damagePets(self._attackBox.CFrame, self.Settings.BiteHitboxSize,
-				self._attackSequence, self.Settings.BiteDamage, self.Model)
+				self._attackSequence, self.Settings.BiteDamage, self.Model, self._target and self._target.UserId)
 		end
 		if self._time >= self._phaseUntil then self._state = "Recovering"; self:_setPhase("Recovery", self.Settings.BiteRecovery) end
 	elseif self._phase == "Recovery" and self._time >= self._phaseUntil then
@@ -429,11 +447,11 @@ function Combat:Step(dt)
 	end
 	self:_updateAttackBox()
 	if self._target and self._health > 0 then
-		local character, _, targetRoot = self:_character(self._target)
+		local character, _, targetRoot = self:_victim(self._target)
 		local support, _, snapshot = self:_supportAndForward()
 		local patrol = self:_patrol()
 		local anchor = snapshot and snapshot.PatrolAnchor
-		local leashed = vector(anchor) and targetRoot and flat(targetRoot.Position - anchor).Magnitude > self.Settings.LeashDistance
+		local leashed = not (snapshot and snapshot.UnrestrictedRoam) and vector(anchor) and targetRoot and flat(targetRoot.Position - anchor).Magnitude > self.Settings.LeashDistance
 		if not character or not patrol or leashed or self._time - self._lastDamaged > self.Settings.AggroTimeout then self:_clearTarget()
 		else
 			self._blockedFor = if snapshot and snapshot.CombatBlocked then self._blockedFor + dt else 0

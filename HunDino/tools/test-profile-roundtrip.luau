@@ -139,7 +139,7 @@ test("Complete account round trip preserves every current durable field across s
 	p.Loadout.WeaponId, p.Loadout.PetWeaponId = "Bow", "Katana"
 	p.Loadout.PlayerArmor = {Head="Bone", Chest="Leather", Arms="Metal", Waist="None", Legs="Training"}
 	p.Loadout.PetArmor = {Head="None", Chest="Bone", Arms="Training", Waist="Leather", Legs="Metal"}
-	p.Preferences = {ShowComboGuide=false, ShowDamage=false, ShowComboFX=true, AimSensitivity=0.5}
+	for key,value in {ShowComboGuide=false, ShowDamage=false, ShowComboFX=true, AimSensitivity=0.5} do p.Preferences[key]=value end
 	p.Pet.HealReadyAt = NOW+119
 	clock.Now += 2
 	save(a, clock, p, true)

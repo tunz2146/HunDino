@@ -402,6 +402,13 @@ function Controller:DamageInBite(cf, size, sequence, damage, sourceModel, now)
 		or (type(sequence) ~= "number" and type(sequence) ~= "string") then return 0 end
 	now = now or self:_now()
 	local sourceKey = sourceModel or self.Combat.Model
+ if sourceKey then
+  local target=sourceKey:GetAttribute("CombatTargetUserId")
+  local kind=sourceKey:GetAttribute("CombatTargetKind")
+  if (target~=nil and target~=self.Player.UserId) or (kind~=nil and kind~="Pet") then return 0 end
+  local faction=sourceKey:GetAttribute("CombatFaction")
+  if faction and faction==self.Pet:GetAttribute("CombatFaction") then return 0 end
+ end
 	local token = self._biteTokens[sourceKey]
 	if token and token.Sequence == sequence then return 0 end
 	local center = self.Pet.PrimaryPart.Position + BODY_OFFSET

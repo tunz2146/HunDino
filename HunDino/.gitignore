@@ -9,4 +9,5 @@ sourcemap.json
 /local-save/
 /tools/lune/
 /tools/lune.zip
+/backups/weapon-handling-*/
 /*.rbxl.lock

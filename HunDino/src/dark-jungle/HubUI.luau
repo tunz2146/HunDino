@@ -208,6 +208,11 @@ function Hub.create(player,gui,callbacks)
    refreshRedeem=refresh
    watchAccount(refresh);watchAttribute("EconomyReady",refresh)
   else
+   local parentBody=body
+   local body=Instance.new("ScrollingFrame");body.Name="ControlSettings";body.BackgroundTransparency=1;body.BorderSizePixel=0
+   body.Size=UDim2.fromScale(1,1);body.CanvasSize=UDim2.fromOffset(0,680);body.ScrollBarThickness=4;body.ScrollBarImageColor3=C.Gold
+   body.ScrollingDirection=Enum.ScrollingDirection.Y;body.Parent=parentBody
+   local controls=require(ReplicatedStorage.Shared.TrainingConfig).Controls
    local intro=label(body,"Intro","",0,0,572,48,14)
    local options={{"ShowComboGuide","Hướng dẫn combo"},{"ShowDamage","Số sát thương"},{"ShowComboFX","Hiệu ứng đòn kết thúc"}}
    for i,option in options do
@@ -218,7 +223,7 @@ function Hub.create(player,gui,callbacks)
      b.Active=player:GetAttribute("ProfileReady")==true;b.TextTransparency=if b.Active then 0 else .45
      callbacks.Preferences()
     end
-    b=button(body,key,"",12,60+(i-1)*54,548,44,function() preference(key,player:GetAttribute(key)==false) end)
+    b=button(body,key,"",12,54+(i-1)*44,548,38,function() preference(key,player:GetAttribute(key)==false) end)
     watchAttribute(key,update);watchAttribute("ProfileReady",update);update()
    end
    local b
@@ -227,11 +232,57 @@ function Hub.create(player,gui,callbacks)
     b.Text="Độ nhạy khi ngắm cung  •  "..math.floor(sensitivity*100).."%"
     b.Active=player:GetAttribute("ProfileReady")==true;b.TextTransparency=if b.Active then 0 else .45
    end
-   b=button(body,"Sensitivity","",12,222,548,44,function()
+   b=button(body,"Sensitivity","",12,186,548,38,function()
     local current=player:GetAttribute("AimSensitivity") or 1
     preference("AimSensitivity",if current==1 then .75 elseif current==.75 then .5 else 1)
    end)
    watchAttribute("AimSensitivity",update);watchAttribute("ProfileReady",update);update()
+   local autoAim
+   local function updateAutoAim()
+    local enabled=player:GetAttribute("AutoBowAim")==true
+    autoAim.Text="Tự ngắm cung  •  "..(if enabled then "BẬT" else "TẮT")
+    autoAim.Active=player:GetAttribute("ProfileReady")==true
+    autoAim.TextTransparency=0
+   end
+   autoAim=button(body,"AutoBowAim","",12,230,548,38,function()
+    preference("AutoBowAim",player:GetAttribute("AutoBowAim")~=true)
+    updateAutoAim()
+   end)
+   watchAttribute("AutoBowAim",updateAutoAim);watchAttribute("ProfileReady",updateAutoAim);updateAutoAim()
+   local function controlToggle(key,y,title,onText,offText)
+    local b
+    local function update()
+     b.Text=title.."  •  "..(if player:GetAttribute(key)==true then onText else offText)
+     b.Active=player:GetAttribute("ProfileReady")==true;b.TextTransparency=if b.Active then 0 else .45
+     callbacks.Preferences()
+    end
+    b=button(body,key,"",12,y,548,38,function() preference(key,player:GetAttribute(key)~=true) end)
+    watchAttribute(key,update);watchAttribute("ProfileReady",update);update()
+   end
+   controlToggle("AutoBowFire",274,"Tự bắn khi giữ nút ngắm","BẬT","TẮT")
+   controlToggle("SwapBowButtons",318,"Chuột cung","Trái ngắm / Phải bắn","Trái bắn / Phải ngắm")
+   for _,row in {{"MeleeStance",362,"Tư thế cận chiến",controls.MeleeStances},{"RangedStance",406,"Tư thế tầm xa",controls.RangedStances}} do
+    local key,y,title,names=row[1],row[2],row[3],row[4]
+    local b
+    local function update()
+     b.Text=title.."  •  "..names[player:GetAttribute(key) or 1]
+     b.Active=player:GetAttribute("ProfileReady")==true;b.TextTransparency=if b.Active then 0 else .45
+     callbacks.Preferences()
+    end
+    b=button(body,key,"",12,y,548,38,function() preference(key,(player:GetAttribute(key) or 1)%#names+1) end)
+    watchAttribute(key,update);watchAttribute("ProfileReady",update);update()
+   end
+   local katanaCarry
+   local function updateKatanaCarry()
+    katanaCarry.Text="Chỗ đeo katana  •  "..controls.KatanaCarryNames[player:GetAttribute("KatanaCarry") or 1].."  (K)"
+    katanaCarry.Active=player:GetAttribute("ProfileReady")==true and player:GetAttribute("Drawn")~=true and player:GetAttribute("WeaponHandling")~=true
+    katanaCarry.TextTransparency=if katanaCarry.Active then 0 else .45
+   end
+   katanaCarry=button(body,"KatanaCarry","",12,450,548,38,function() preference("KatanaCarry",(player:GetAttribute("KatanaCarry") or 1)%2+1) end)
+   for _,key in {"KatanaCarry","ProfileReady","Drawn","WeaponHandling"} do watchAttribute(key,updateKatanaCarry) end
+   updateKatanaCarry()
+   label(body,"ControlHelp","1–7: chọn đồ · R: tự rút/cất · B: đổi tư thế\nK: đổi chỗ katana khi đã cất · T: ngắm · Y: tự bắn",12,494,548,48,12)
+
    local saveButton
    local function refreshSave()
     local state=player:GetAttribute("ProfileSaveState") or "Loading"
@@ -262,7 +313,7 @@ function Hub.create(player,gui,callbacks)
     intro.Text=if manualSave.Pending and not saving then "Đã gửi yêu cầu; đang chờ máy chủ xác nhận lưu…" else (manualSave.Notice or accountStatus())
     intro.TextColor3=if failed or memory or manualSave.Notice then C.Warning elseif manualSave.Pending or saving then C.Gold elseif state=="Saved" then C.Health else C.Muted
    end
-   saveButton=button(body,"SaveGame","SAVE GAME",12,282,266,48,function()
+   saveButton=button(body,"SaveGame","SAVE GAME",12,550,266,44,function()
     refreshSave();if not saveButton.Active then return end
     local remote=ReplicatedStorage:FindFirstChild("HunDinoProfileAction")
     if not remote or not remote:IsA("RemoteEvent") then return end
@@ -273,8 +324,8 @@ function Hub.create(player,gui,callbacks)
     if not sent then manualSave.Pending=false;manualSave.Notice="Chưa gửi được yêu cầu lưu. Hãy thử lại." end
     refreshSave()
    end)
-   button(body,"OpenRedeemCode","NHẬP CODE  ›",294,282,266,48,function() show("Redeem") end)
-   local hint=label(body,"AutoSaveHint","Tiến trình tự động lưu; dùng Save game khi cần lưu ngay.",12,342,548,30,13);hint.TextColor3=C.Muted
+   button(body,"OpenRedeemCode","NHẬP CODE  ›",294,550,266,44,function() show("Redeem") end)
+   local hint=label(body,"AutoSaveHint","Các lựa chọn điều khiển được lưu cùng hồ sơ. Tự bắn chỉ hoạt động khi giữ nút ngắm; tay trái giữ cung, tay phải kéo và nhả dây.",12,600,548,64,12);hint.TextColor3=C.Muted
    watchAccount(refreshSave)
    local elapsed=0
    table.insert(bodyConnections,RunService.Heartbeat:Connect(function(dt)

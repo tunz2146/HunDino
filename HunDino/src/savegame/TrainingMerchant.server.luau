@@ -4,6 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Config = require(ReplicatedStorage.Shared.TrainingConfig)
+local Handling=Config.Controls.Handling(CFrame,Vector3)
 local Rules = require(ReplicatedStorage.Shared.TrainingRules)
 local Weapons = require(ReplicatedStorage.Shared.Weapons)
 local Bow = require(ReplicatedStorage.Shared.BowBallistics)
@@ -30,10 +31,10 @@ local hunting = require(huntingRuntime:WaitForChild("HuntingSession")).new(fores
 	workspace:WaitForChild("Dinosaur01_TRex_Visual"), require(huntingRuntime:WaitForChild("DinosaurRouteController")))
 local dinosaurCombat = require(huntingRuntime:WaitForChild("DinosaurCombat")).new(
 	workspace:WaitForChild("Dinosaur01_TRex_Visual"), forest, huntingConfig, hunting, {
-		DamagePets = function(cf, size, sequence, damage, sourceModel)
+		DamagePets = function(cf, size, sequence, damage, sourceModel, targetUserId)
 			local now = workspace:GetServerTimeNow()
 			for _, s in states do
-				if s.Companion and s.InHunting and not s.Travelling then
+				if s.Companion and s.InHunting and not s.Travelling and s.Player.UserId==targetUserId then
 					s.Companion:DamageInBite(cf, size, sequence, damage, sourceModel, now)
 				end
 			end
@@ -71,6 +72,9 @@ local function sync(s)
 	p:SetAttribute("Charging",s.Charge~=nil)
 	p:SetAttribute("BowAiming",s.WeaponId=="Bow" and s.Drawn and (s.Aiming or s.Charge~=nil))
 	p:SetAttribute("WeaponId", s.WeaponId)
+ local faction=p:GetAttribute("CombatFaction") or (if p.Team then "Team:"..p.Team.Name else "Hunters")
+ s.Character:SetAttribute("CombatFaction",faction);s.Character:SetAttribute("OwnerUserId",p.UserId)
+ if s.Pet then s.Pet:SetAttribute("CombatFaction",faction);s.Pet:SetAttribute("OwnerUserId",p.UserId) end
 	p:SetAttribute("PetWeaponId",s.PetWeaponId)
 	p:SetAttribute("Blocking", s.Blocking)
 	p:SetAttribute("BowBoost", s.BowBoostUntil > os.clock())
@@ -104,32 +108,175 @@ local function equipArmor(s,enabled)
  s.ArmorInitialized=true
  applyArmorTarget(s,"Player")
 end
+-- Both hands and the visible model use the same contact-based plan.
+local function stowedWeaponPose(s, offhand, torso)
+ local pose=Handling.mount(s.WeaponId,offhand,s.Player:GetAttribute("KatanaCarry") or 1,torso.Size)
+ local arm=Handling.arm(s.Character,if (offhand and s.WeaponId~="DualDaggers") or Weapons[s.WeaponId].Ranged then "left" else "right")
+ local grip=Handling.grip(s.WeaponId)
+ return torso.CFrame:ToObjectSpace(Handling.reach(arm,torso.CFrame*pose*grip)*grip:Inverse())
+end
+local function heldWeaponPose(s, offhand, limb)
+ local ranged=Weapons[s.WeaponId].Ranged==true
+ local stance=s.Player:GetAttribute(if ranged then "RangedStance" else "MeleeStance") or 1
+ local torso=s.Character:FindFirstChild("UpperTorso") or s.Character:FindFirstChild("Torso") or s.Root
+ local arm=Handling.arm(s.Character,if offhand or ranged then "left" else "right")
+ local goal=torso.CFrame*Handling.ready(s.WeaponId,offhand,stance,false,0)
+ local grip=Handling.grip(s.WeaponId)
+ return limb.CFrame:ToObjectSpace(Handling.reach(arm,goal*grip)*grip:Inverse())
+end
+local function clearDraw(s)
+ s.DrawMotion=nil
+ for _,tween in s.DrawTweens or {} do tween:Cancel() end
+ s.DrawTweens={}
+ if s.Character and s.Character.Parent then s.Character:SetAttribute("WeaponDrawTarget",nil) end
+ s.Player:SetAttribute("WeaponHandling",false)
+end
 local function weaponPose(s)
-	if not s.Grip or not s.Grip.Parent then return end
-	local torso = s.Character:FindFirstChild("UpperTorso") or s.Character:FindFirstChild("Torso") or s.Root
-	local left = s.Character:FindFirstChild("LeftHand") or s.Character:FindFirstChild("Left Arm") or torso
-	local right = s.Character:FindFirstChild("RightHand") or s.Character:FindFirstChild("Right Arm") or torso
-	if s.Drawn then
-		s.Grip.Part0 = if s.WeaponId == "Bow" then left else right
-		s.RestPose = if s.WeaponId == "Bow" then CFrame.new(0, .1, -.5) * CFrame.Angles(0, -math.pi/2, 0)
-			else CFrame.new(0, -.5, -.5) * CFrame.Angles(math.rad(-25), 0, math.rad(10))
-	else
-		s.Grip.Part0 = torso
-		s.RestPose = CFrame.new(.5, -1, 1) * CFrame.Angles(0, 0, math.rad(-30))
-	end
-	s.Grip.C0 = s.RestPose
-	if s.OffGrip then
-		s.OffGrip.Part0 = if s.Drawn then left else torso
-		s.OffRest = if s.Drawn then CFrame.new(0, -.3, -.35) else CFrame.new(-.7, -.7, 1.3)
-		s.OffGrip.C0 = if s.Blocking then CFrame.new(.5,.5,-1) * CFrame.Angles(0,-.3,0) else s.OffRest
-	end
-	if s.SheathGrip then s.SheathGrip.Part0 = torso; s.SheathGrip.C0 = CFrame.new(.5,-1,1.04)*CFrame.Angles(0,0,math.rad(-30)) end
+ if not s.Grip or not s.Grip.Parent then return end
+ clearDraw(s)
+ local torso=s.Character:FindFirstChild("UpperTorso") or s.Character:FindFirstChild("Torso") or s.Root
+ local left=s.Character:FindFirstChild("LeftHand") or s.Character:FindFirstChild("Left Arm") or torso
+ local right=s.Character:FindFirstChild("RightHand") or s.Character:FindFirstChild("Right Arm") or torso
+ local hand=if Weapons[s.WeaponId].Ranged then left else right
+ local mount=stowedWeaponPose(s,false,torso)
+ s.Grip.Part0=if s.Drawn then hand else torso
+ s.RestPose=if s.Drawn then heldWeaponPose(s,false,hand) else mount
+ s.Grip.C0=s.RestPose
+ s.Character:SetAttribute("WeaponPresentationDrawn",s.Drawn==true)
+ s.Character:SetAttribute("WeaponMainRestC0",s.RestPose)
+ s.Character:SetAttribute("WeaponMainMountC0",mount)
+ if s.OffGrip then
+  s.OffGrip.Part0=if s.Drawn then left else torso
+  s.OffRest=if s.Drawn then heldWeaponPose(s,true,left) else stowedWeaponPose(s,true,torso)
+  s.OffGrip.C0=s.OffRest
+  s.Character:SetAttribute("WeaponOffRestC0",s.OffRest)
+  s.Character:SetAttribute("WeaponOffMountC0",stowedWeaponPose(s,true,torso))
+ end
+ if s.SheathGrip then
+  s.SheathGrip.Part0=torso
+  s.SheathGrip.C0=mount*CFrame.new(0,.72*Handling.scale(s.WeaponId),-.08*Handling.scale(s.WeaponId))
+ end
+ s.PresentationStance=s.Player:GetAttribute(if Weapons[s.WeaponId].Ranged then "RangedStance" else "MeleeStance") or 1
+ local carry=s.Player:GetAttribute("KatanaCarry") or 1
+ local strap=s.WeaponModel and s.WeaponModel:FindFirstChild("KatanaShoulderStrap")
+ local strapWeld=strap and strap:FindFirstChildOfClass("Weld")
+ if strapWeld then
+  strap.Size=if carry==1 then Vector3.new(.14,torso.Size.X+.35,.08) else Vector3.new(.14,2.3,.08)
+  strapWeld.C0=if carry==1 then CFrame.new(0,-torso.Size.Y*.5+.2,torso.Size.Z*.5+.14)*CFrame.Angles(0,0,math.pi/2) else CFrame.new(.2,0,torso.Size.Z*.5+.14)*CFrame.Angles(0,0,.48)
+ end
+ s.PresentationCarry=carry
+end
+local function animateDraw(s,target)
+ local torso=s.Character:FindFirstChild("UpperTorso") or s.Character:FindFirstChild("Torso") or s.Root
+ local left=s.Character:FindFirstChild("LeftHand") or s.Character:FindFirstChild("Left Arm") or torso
+ local right=s.Character:FindFirstChild("RightHand") or s.Character:FindFirstChild("Right Arm") or torso
+ local motion={Target=target,Started=os.clock(),Duration=Config.Controls.DrawSeconds,Grips={},Torso=torso}
+ for _,entry in {{s.Grip,if Weapons[s.WeaponId].Ranged then left else right,false},{s.OffGrip,left,true}} do
+  local grip,hand,offhand=entry[1],entry[2],entry[3]
+  if grip and grip.Parent and grip.Part0 then
+   grip.C0=torso.CFrame:ToObjectSpace(grip.Part0.CFrame*grip.C0);grip.Part0=torso
+   table.insert(motion.Grips,{Grip=grip,Hand=hand,Offhand=offhand,Mount=stowedWeaponPose(s,offhand,torso)})
+  end
+ end
+ s.DrawMotion=motion
+ s.Character:SetAttribute("WeaponDrawTarget",target)
+ s.Character:SetAttribute("WeaponDrawAt",workspace:GetServerTimeNow())
+ s.Character:SetAttribute("WeaponDrawDuration",motion.Duration)
+ s.Player:SetAttribute("WeaponHandling",true)
+end
+local function updatePresentation(s)
+ local motion=s.DrawMotion
+ if motion then
+  if s.ChangeDraw~=motion.Target or not motion.Torso.Parent then clearDraw(s);return end
+  local progress=math.clamp((os.clock()-motion.Started)/motion.Duration,0,1)
+  local q=Handling.phase(progress,motion.Target)
+  local stance=s.Player:GetAttribute(if Weapons[s.WeaponId].Ranged then "RangedStance" else "MeleeStance") or 1
+  for _,entry in motion.Grips do
+   local grip,hand=entry.Grip,entry.Hand
+   if not grip.Parent or not hand.Parent then clearDraw(s);return end
+   local ready=Handling.ready(s.WeaponId,entry.Offhand,stance,false,0)
+   grip.C0=Handling.path(entry.Mount,ready,q,s.WeaponId,Handling.scale(s.WeaponId))
+  end
+  if s.WeaponId=="DualDaggers" and s.OffGrip then
+   local first,second=motion.Grips[1],motion.Grips[2]
+   local handoff=motion.Torso.CFrame:ToObjectSpace(Handling.handoff(Handling.arm(s.Character,"left"),Handling.arm(s.Character,"right"),motion.Torso.CFrame))
+   local main,off=Handling.dual(first.Mount,second.Mount,Handling.ready(s.WeaponId,false,stance,false,0),Handling.ready(s.WeaponId,true,stance,false,0),handoff,CFrame.new(),CFrame.new(),q)
+   s.Grip.C0=main;s.OffGrip.C0=off
+  end
+  if s.SheathGrip then
+   s.SheathGrip.Part0=motion.Torso
+   s.SheathGrip.C0=Handling.sheath(stowedWeaponPose(s,false,motion.Torso),s.Grip.C0,q,Handling.scale(s.WeaponId))
+  end
+  if progress>=1 then s.Drawn=motion.Target;s.ChangeDraw=nil;weaponPose(s);sync(s) end
+ elseif os.clock()>=s.BusyUntil then
+  local stance=s.Player:GetAttribute(if Weapons[s.WeaponId].Ranged then "RangedStance" else "MeleeStance") or 1
+  local carry=s.Player:GetAttribute("KatanaCarry") or 1
+  if stance~=s.PresentationStance or (not s.Drawn and carry~=s.PresentationCarry) then weaponPose(s) end
+ end
+end
+
+local function createBowString(s,model)
+ if s.WeaponId~="Bow" then return end
+ local assembly=model:FindFirstChild("Main");local handle=assembly and assembly.PrimaryPart
+ local original=assembly and assembly:FindFirstChild("BowString")
+ if not handle or not original then return end
+ original.Transparency=1
+ local function attachment(name,position)
+  local a=Instance.new("Attachment");a.Name=name;a.Position=position;a.Parent=handle;return a
+ end
+ local scale=Handling.scale("Bow")
+ local upper=attachment("BowStringUpper",Vector3.new(1.15,2.45,0)*scale)
+ local lower=attachment("BowStringLower",Vector3.new(1.15,-2.45,0)*scale)
+ local nock=attachment("BowStringNock",Vector3.new(1.15,0,0)*scale)
+ for _,endpoint in {upper,lower} do
+  local beam=Instance.new("Beam");beam.Name="DrawnBowString";beam.Attachment0=endpoint;beam.Attachment1=nock
+  beam.Width0=.025;beam.Width1=.025;beam.FaceCamera=true;beam.Color=ColorSequence.new(original.Color);beam.LightEmission=.8;beam.Parent=handle
+ end
+ local arrow=makePart(assembly,"BowHeldArrow",Vector3.new(.045,.045,1.8)*scale,Color3.fromRGB(176,145,93),handle.CFrame,false)
+ arrow.CanQuery=false
+ local seat=weld(handle,arrow,CFrame.new());seat.Name="ArrowSeat"
+end
+
+local function createCarryDetails(s,model)
+ local torso=s.Character:FindFirstChild("UpperTorso") or s.Character:FindFirstChild("Torso") or s.Root
+ local function attached(name,size,color,offset,parent)
+  local part=makePart(parent or model,name,size,color,torso.CFrame*offset,false)
+  part.CanQuery=false;weld(torso,part,offset);return part
+ end
+ if s.WeaponId=="Katana" then
+  local sheath=model:FindFirstChild("Sheath")
+  local scale=Handling.scale("Katana")
+  local scabbard=sheath and sheath:FindFirstChild("Scabbard")
+  if scabbard then
+   scabbard.Size+=Vector3.new(.24*scale,.16*scale,.06*scale)
+   for _,joint in scabbard:GetChildren() do
+    if joint:IsA("Weld") and joint.Part1==scabbard then joint.C0*=CFrame.new(0,.08*scale,0) end
+   end
+  end
+  for _,part in if sheath then sheath:GetChildren() else {} do
+   if part:IsA("BasePart") then
+    if part.Name=="Band" then part.Size=Vector3.new(.74*scale,part.Size.Y,.4*scale) end
+    part.Color=if part.Name=="Band" then Color3.fromRGB(115,30,33) else Color3.fromRGB(25,28,32)
+   end
+  end
+  attached("KatanaShoulderStrap",Vector3.new(.14,2.3,.08),Color3.fromRGB(34,30,29),CFrame.new(.2,0,torso.Size.Z*.5+.14)*CFrame.Angles(0,0,.48))
+ elseif s.WeaponId=="Bow" then
+  local quiver=Instance.new("Model");quiver.Name="Quiver";quiver.Parent=model
+  local offset=CFrame.new(.75,-.5,torso.Size.Z*.5+.4)*CFrame.Angles(0,0,-.22)
+  attached("QuiverBody",Vector3.new(.55,1.65,.4),Color3.fromRGB(53,38,27),offset,quiver)
+  for i=1,4 do
+   local arrow=offset*CFrame.new((i-2.5)*.1,.65,0)
+   attached("QuiverArrow",Vector3.new(.035,1.7,.035),Color3.fromRGB(161,130,78),arrow,quiver)
+   attached("QuiverFletching",Vector3.new(.13,.25,.05),Color3.fromRGB(199,188,152),arrow*CFrame.new(0,.58,0),quiver)
+  end
+ end
 end
 
 local function createWeapon(s)
 	if s.WeaponModel then s.WeaponModel:Destroy() end
 	s.OffGrip = nil; s.SheathGrip = nil
 	local model = weaponTemplates[s.WeaponId]:Clone(); model.Name = "TrainingWeapon"
+ model:ScaleTo(model:GetScale()*Handling.scale(s.WeaponId))
 	for _, assembly in model:GetChildren() do
 		local handle = assembly.PrimaryPart
 		for _, p in assembly:GetChildren() do
@@ -141,7 +288,7 @@ local function createWeapon(s)
 		local grip = weld(s.Root,handle,CFrame.new())
 		if assembly.Name == "Main" then s.Grip = grip elseif assembly.Name == "Offhand" then s.OffGrip = grip else s.SheathGrip = grip end
 	end
-	model.Parent = s.Character; s.WeaponModel = model; weaponPose(s)
+	model.Parent = s.Character; s.WeaponModel = model; createBowString(s,model); createCarryDetails(s,model); weaponPose(s)
 end
 local function equipWeapon(s,id)
 	if not Rules.canEquip(s,Weapons,id,os.clock()) then
@@ -271,6 +418,9 @@ local function attack(s, action, direction, releasedKind, releasedSpec, targetPo
 	local kind,spec=releasedKind,releasedSpec
 	if not kind then kind,spec=Rules.attack(Config,Weapons,s,action,now) end
 	if not kind then return end
+ s.Character:SetAttribute("WeaponAttackAt",workspace:GetServerTimeNow())
+ s.Character:SetAttribute("WeaponAttackDuration",spec.Duration)
+ s.Character:SetAttribute("WeaponAttackStyle",spec.Style or "Swing")
 	local attackDamage=spec.Damage*(if economy then economy:DamageMultiplier(s.Player,s.WeaponId) else 1)
 	direction = direction.Unit
 	local flat=Vector3.new(direction.X,0,direction.Z)
@@ -382,9 +532,10 @@ local function releaseCharge(s,direction,targetPoint)
 end
 local function toggleDraw(s, target)
 	if os.clock() < s.BusyUntil then return end
-	s.BusyUntil = os.clock() + Config.SheatheTime; Rules.clearCombo(s); s.Sprinting = false
+	s.BusyUntil = os.clock() + ((Config.Controls and Config.Controls.DrawSeconds) or .62); Rules.clearCombo(s); s.Sprinting = false
 	s.Blocking=false; s.BowBoostUntil=0; s.Aiming=false; weaponPose(s)
 	s.ChangeDraw = target
+	animateDraw(s,target)
 	message(s, (if target then "Đang rút " else "Đang cất ")..Weapons[s.WeaponId].Name.."…")
 end
 local function travel(s, destination, arrivalOverride, arrivalMessage, force)
@@ -533,6 +684,18 @@ local function equipInventory(s,value)
  end
 end
 
+local function weaponHotkey(s,slot)
+ if typeof(slot)~="number" or slot~=slot or slot%1~=0 or slot<1 or slot>7 or slot>#Weapons.Order
+  or not (s.InTraining or s.InHunting) or s.Travelling then return end
+ local id=Weapons.Order[slot]
+ if s.WeaponId==id then return end
+ if s.Drawn or s.ChangeDraw~=nil or s.Charge or os.clock()<s.BusyUntil then
+  message(s,"Nhấn R cất vũ khí và hoàn tất động tác trước khi chọn ô khác.");return
+ end
+ s.WeaponHotkeyGeneration=(s.WeaponHotkeyGeneration or 0)+1
+ equipWeapon(s,id)
+end
+
 remote.OnServerEvent:Connect(function(player, action, value)
 	local s = states[player]
 	if not alive(s) or typeof(action) ~= "string" then return end
@@ -571,6 +734,7 @@ remote.OnServerEvent:Connect(function(player, action, value)
     Unavailable="Vào khu săn hoặc bãi tập để gọi Pet hồi.",InvalidHealth="Chưa thể hồi máu lúc này."}
    message(s,reasons[reason] or "Chưa thể gọi Pet hồi lúc này.")
   end
+ elseif action=="WeaponHotkey" then weaponHotkey(s,value)
  elseif action=="EquipInventory" then equipInventory(s,value)
  elseif action=="ChargeStart" then
   if typeof(value)~="table" or typeof(value.Id)~="number" or value.Id~=value.Id or value.Id<=0 or value.Id%1~=0 or value.Id>1e9 or not (s.InTraining or s.InHunting) then return end
@@ -580,7 +744,7 @@ remote.OnServerEvent:Connect(function(player, action, value)
   c.Id=value.Id;c.Action=value.Action;c.Direction=value.Direction.Unit
   c.Target=if Bow.validTarget(value.Target,Bow.origin(s.Root.Position)) then value.Target else nil
   s.AttackSerial=(s.AttackSerial or 0)+1;s.WantSprint=false;s.Sprinting=false;s.Humanoid.AutoRotate=not s.Aiming
-  s.Character:SetAttribute("ChargePose","Bow")
+  s.Character:SetAttribute("ChargePose","Bow");s.Character:SetAttribute("WeaponChargeAt",workspace:GetServerTimeNow());s.Character:SetAttribute("WeaponChargeDuration",s.Charge.Time)
   TweenService:Create(s.Grip,TweenInfo.new(.18),{C0=s.RestPose*CFrame.new(0,0,.25)}):Play()
   remote:FireClient(player,"ChargeStart",c.Time,c.Id);sync(s)
  elseif action=="ChargeAim" or action=="BowAim" then
@@ -624,6 +788,7 @@ remote.OnServerEvent:Connect(function(player, action, value)
 		s.WantSprint = value; if value then Rules.clearCombo(s); s.Blocking=false; weaponPose(s) end
 		if not value then s.Sprinting = false end
 	elseif action == "Draw" then
+		s.WeaponHotkeyGeneration=(s.WeaponHotkeyGeneration or 0)+1
 		if s.Charge then cancelCharge(s);s.BusyUntil=now end
 		s.WantSprint = false; toggleDraw(s, not s.Drawn)
 	elseif action == "Light" or action == "Heavy" or action == "Skill" then
@@ -788,6 +953,7 @@ Players.PlayerRemoving:Connect(function(player) previewCooldown[player]=nil;econ
 script.Destroying:Connect(function() quests:Destroy();economy:Destroy();hunting:Destroy();dinosaurCombat:Destroy();previewRemote:Destroy() end)
 local accumulator = 0
 RunService.Heartbeat:Connect(function(dt)
+ for _,state in states do if alive(state) then updatePresentation(state) end end
 	accumulator += dt; if accumulator < 0.1 then return end
 	local petAnimationDt = accumulator
 	dt = math.min(accumulator, 0.25); accumulator = 0
@@ -807,9 +973,6 @@ RunService.Heartbeat:Connect(function(dt)
 			else task.spawn(travel,s,"Lobby",nil,"Đã đưa bạn và Pet về sảnh an toàn.",true) end
 		end
 		if s.Charge and now-s.Charge.Started>=s.Charge.MaxHold then releaseCharge(s,s.Charge.Direction,s.Charge.Target) end
-		if s.ChangeDraw ~= nil and now >= s.BusyUntil then
-			s.Drawn = s.ChangeDraw; s.ChangeDraw = nil; weaponPose(s)
-		end
 		if s.WantSprint and s.Drawn and now >= s.BusyUntil then toggleDraw(s, false) end
 		s.Sprinting = s.WantSprint and not s.Drawn and now >= s.BusyUntil and s.Stamina > 0
 			and s.Humanoid.MoveDirection.Magnitude > 0.1

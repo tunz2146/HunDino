@@ -11,7 +11,7 @@ assert(module and module:IsA("ModuleScript"), "Install DinosaurRouteController f
 local Controller = require(module)
 local config = require(ReplicatedStorage:WaitForChild("HuntingMapConfig"))
 local worldOffset = config.WorldOffset or root:GetAttribute("WorldOffset") or Vector3.zero
-local report = {ok = false, version = "HuntingRouteTest.2", cases = {}, failures = {},
+local report = {ok = false, version = "HuntingRouteTest.3", cases = {}, failures = {},
 	checks = 0, groundQueries = 0, footprintQueries = 0}
 local function check(condition, message)
 	report.checks += 1
@@ -218,6 +218,49 @@ local success, failure = xpcall(function()
 		end
 	end
 	for id in expectedAll do check(allVisited[id] == true, "A routes never visited "..id) end
+
+	local habitats = {}
+	for _, zone in config.Zones do
+		if zone.kind == "Main" or zone.kind == "Rest" then table.insert(habitats, zone) end
+	end
+	local random = Random.new(741)
+	local spawnZone = habitats[random:NextInteger(1, #habitats)]
+	clone = source:Clone()
+	clone.Name = "TestFreeRoamPrototype"
+	clone:SetAttribute("RouteEnabled", true)
+	for _, child in clone:GetDescendants() do
+		if child:IsA("BaseScript") then child.Enabled = false end
+		if child:IsA("BasePart") then child.Transparency = 1; child.CanCollide = false; child.CanTouch = false end
+	end
+	clone.Parent = folder
+	local roam = {home = spawnZone.id, visited = {}, steps = 0}
+	table.insert(report.cases, roam)
+	activeController = Controller.new(clone, root, config, {
+		HomeZone = spawnZone.id, FreeRoam = true, SpawnPosition = config.position(spawnZone),
+		Random = random, AutoConnect = false, Speed = 24, InitialRestSeconds = 0.1, RestSeconds = 0.1,
+	})
+	activeController:Start()
+	local distinct = {}
+	for step = 1, 10000 do
+		activeController:Step(0.1)
+		roam.steps = step
+		local snapshot = activeController:GetSnapshot()
+		distinct[snapshot.CurrentZone] = true
+		if snapshot.TargetZone then distinct[snapshot.TargetZone] = true end
+		if snapshot.CompletedLegs >= 2 and snapshot.CurrentZone ~= spawnZone.id then
+			roam.snapshot = snapshot
+			break
+		end
+		if step % 200 == 0 then task.wait() end
+	end
+	for zone in distinct do table.insert(roam.visited, zone) end
+	table.sort(roam.visited)
+	check(roam.snapshot ~= nil, "Free roam: did not reach two connected zones from "..spawnZone.id)
+	check(not distinct.Camp, "Free roam: entered the human-only Camp zone")
+	check(roam.snapshot and roam.snapshot.GroundMisses == 0, "Free roam: lost safe ground")
+	check(roam.snapshot and roam.snapshot.DistanceTravelled > 0, "Free roam: did not move")
+	activeController:Destroy(false); activeController = nil
+	clone:Destroy(); clone = nil
 end, debug.traceback)
 
 -- Cleanup runs even if construction or a simulation assertion raises an error.

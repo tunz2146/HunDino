@@ -1,6 +1,7 @@
 -- Server patrol for the existing segmented prototype. This controller owns both
 -- root placement and the six-joint gait; keep the old circular MotionRuntime disabled.
 local RunService = game:GetService("RunService")
+local PathfindingService = game:GetService("PathfindingService")
 local HttpService = game:GetService("HttpService")
 local Controller = {}
 Controller.__index = Controller
@@ -76,10 +77,14 @@ function Controller.new(model, map, config, options)
 	assert(root.Anchored, "Route prototype requires its anchored body root")
 	local oldRuntime = model:FindFirstChild("MotionRuntime")
 	assert(not oldRuntime or oldRuntime.Disabled, "Disable old MotionRuntime before installing route movement")
-	local network, report = buildNetwork(map, config)
+	local unrestricted=options.UnrestrictedRoam==true
+ local network,report={}, {ok=true,errors={}}
+ if not unrestricted then network,report=buildNetwork(map,config) end
 	assert(report.ok, table.concat(report.errors, "; "))
 	local home = options.HomeZone or model:GetAttribute("HuntingZone") or "A"
-	assert(config.Routes[home] and #config.Routes[home] > 0, "No routes for home " .. tostring(home))
+	local freeRoam = options.FreeRoam == true
+	local homeRoutes = (config.Routes and config.Routes[home]) or {}
+	assert(unrestricted or (freeRoam and network[home]) or #homeRoutes > 0, "No routes for home " .. tostring(home))
 	local localForward = model:GetAttribute("ForwardInRoot")
 	assert(typeof(localForward) == "Vector3" and flat(localForward).Magnitude > .1, "Missing dinosaur ForwardInRoot")
 	local worldForward = flat(root.CFrame:VectorToWorldSpace(localForward)).Unit
@@ -109,16 +114,29 @@ function Controller.new(model, map, config, options)
 	local supportWorld = root.CFrame:PointToWorldSpace(supportLocal)
 	local groundParams = RaycastParams.new()
 	groundParams.FilterType = Enum.RaycastFilterType.Include
-	groundParams.FilterDescendantsInstances = {workspace.Terrain, map:WaitForChild("Paths"), map:WaitForChild("Zones")}
+	groundParams.FilterDescendantsInstances = if unrestricted then {model} else {workspace.Terrain, map:WaitForChild("Paths"), map:WaitForChild("Zones")}
 	groundParams.RespectCanCollide = true; groundParams.IgnoreWater = true
+ if unrestricted then
+  groundParams.FilterType=Enum.RaycastFilterType.Exclude
+  groundParams.FilterDescendantsInstances={model,workspace:FindFirstChild("TrainingPets")}
+  groundParams.IgnoreWater=false
+ end
 	local decorParams = RaycastParams.new()
 	decorParams.FilterType = Enum.RaycastFilterType.Include
-	decorParams.FilterDescendantsInstances = {map:WaitForChild("Decor")}
+	decorParams.FilterDescendantsInstances = if unrestricted then {} else {map:WaitForChild("Decor")}
 	decorParams.RespectCanCollide = true
 	local overlapParams = OverlapParams.new()
 	overlapParams.FilterType = Enum.RaycastFilterType.Include
-	overlapParams.FilterDescendantsInstances = {map.Decor}
+	overlapParams.FilterDescendantsInstances = if unrestricted then {} else {map.Decor}
 	overlapParams.RespectCanCollide = true
+ if unrestricted then
+  local obstacleRoots={}
+  for _,item in workspace:GetChildren() do
+   if item~=model and not item:IsA("Terrain") and item.Name~="TrainingPets" then table.insert(obstacleRoots,item) end
+  end
+  decorParams.FilterDescendantsInstances=obstacleRoots
+  overlapParams.FilterDescendantsInstances=obstacleRoots
+ end
 	local low, high = Vector3.new(math.huge, math.huge, math.huge), Vector3.new(-math.huge, -math.huge, -math.huge)
 	local anatomy = CFrame.lookAt(supportWorld, supportWorld + worldForward)
 	for _, part in model:GetDescendants() do
@@ -135,15 +153,17 @@ function Controller.new(model, map, config, options)
 		_position = flat(supportWorld), _groundY = supportWorld.Y, _yaw = math.atan2(worldForward.X, worldForward.Z), _up = Y,
 		_groundParams = groundParams, _originalRoot = root.CFrame, _originalAttributes = {},
 		_decorParams = decorParams, _overlapParams = overlapParams,
-		_collisionSize = high - low + Vector3.new(2, 1, 2), _collisionCenter = (high + low) * .5,
+		_collisionSize = high - low + Vector3.new(2, if unrestricted then -2 else 1, 2), _collisionCenter = (high + low) * .5 + Vector3.new(0,if unrestricted then 1.5 else 0,0),
 		_combatLeash = number(options.CombatLeashStuds or options.CombatLeash or config.CombatLeashStuds, 260, 20, 400),
 		_campSafeRadius = number(options.CampSafeRadius or config.CampSafeRadius, 110, 50, 400),
 		_combatSpeed = number(options.CombatSpeed, 16, 1, 24),
 		_combatSlope = math.rad(number(options.CombatSlopeDegrees, 28, 5, 35)), _combatBlocked = false,
 		_speed = 0, _phase = 0, _blend = 0, _nod = 0, _attributeElapsed = 0,
 		_state = "Stopped", _currentZone = home, _targetZone = home, _restRemaining = 0,
-		_routeIndex = number(options.InitialRouteIndex, 1, 1, #config.Routes[home]),
+		_routeIndex = number(options.InitialRouteIndex, 1, 1, math.max(1, #homeRoutes)),
 		_reversed = options.InitialReverse == true, _fixedRouteIndex = options.FixedRouteIndex,
+		_unrestrictedRoam=unrestricted,_roamRest=options.InitialRestSeconds or 2,_roamGeneration=0,
+		_freeRoam = freeRoam, _previousZone = nil, _random = options.Random or Random.new(),
 		_reverseEachCycle = options.ReverseEachCycle ~= false,
 		_maxSpeed = number(options.Speed, 12, 1, 24), _acceleration = number(options.Acceleration, 6, 1, 30),
 		_turnSpeed = math.rad(number(options.TurnSpeedDegrees, 65, 10, 180)),
@@ -153,11 +173,37 @@ function Controller.new(model, map, config, options)
 		_autoConnect = options.AutoConnect ~= false, _running = false, _destroyed = false,
 		_cycles = 0, _legs = 0, _travelled = 0, _groundMisses = 0, _visited = {home}}, Controller)
 	self._routeIndex = math.floor(self._routeIndex)
-	if self._fixedRouteIndex then self._routeIndex = math.floor(number(self._fixedRouteIndex, 1, 1, #config.Routes[home])) end
+	if self._fixedRouteIndex then self._routeIndex = math.floor(number(self._fixedRouteIndex, 1, 1, math.max(1, #homeRoutes))) end
+	if freeRoam or options.SpawnPosition ~= nil then
+		assert(freeRoam, "Random spawn position requires free-roam mode")
+		local spawnPosition = options.SpawnPosition or config.position(config.zone(home))
+		assert(finite(spawnPosition), "Random spawn position must be a finite Vector3")
+		local zone = config.zone(home)
+		assert(unrestricted or (flat(spawnPosition) - flat(config.position(zone))).Magnitude <= zone.width * .5,
+			"Random spawn position must remain inside its home zone")
+		self._position = flat(spawnPosition)
+		local hit = self:_ground(self._position)
+		assert(hit and hit.Normal.Y >= math.cos(math.rad(35)), "Random spawn position has no safe ground")
+		self._groundY = hit.Position.Y
+  local direction
+  if unrestricted then local yaw=self._random:NextNumber(-math.pi,math.pi);direction=Vector3.new(math.sin(yaw),0,math.cos(yaw))
+  else
+		local exits = self._network[home]
+		local destinations = {}
+		for destination in exits do table.insert(destinations, destination) end
+		table.sort(destinations)
+		assert(#destinations > 0, "Free-roam spawn zone has no connected paths: " .. home)
+		local nextZone = destinations[self._random:NextInteger(1, #destinations)]
+		local nextPosition = flat(self.Config.position(self.Config.zone(nextZone)))
+		direction = (nextPosition - self._position).Unit
+  end
+		self._yaw = math.atan2(direction.X, direction.Z)
+		self:_place(0, hit, direction, 0)
+	end
 	for _, key in {"RouteEnabled", "RouteState", "RouteCurrentZone", "RouteTargetZone", "RouteHomeZone", "RouteIndex",
 		"RouteReversed", "RouteCyclesCompleted", "RouteLegsCompleted", "RouteDistanceTravelled", "RouteSpeed",
 		"RouteWalking", "RouteGroundMisses", "RouteRestRemaining", "RouteMotionMode", "RouteCombatBlocked",
-		"HuntingZone", "MapRole", "PreviewWalking"} do self._originalAttributes[key] = {value = model:GetAttribute(key)} end
+		"HuntingZone", "MapRole", "PreviewWalking", "UnrestrictedRoam", "RoamDestination"} do self._originalAttributes[key] = {value = model:GetAttribute(key)} end
 	model:SetAttribute("PreviewWalking", false)
 	model:SetAttribute("MapRole", "HuntingPrototype_RoutePatrol")
 	model:SetAttribute("RouteHomeZone", home)
@@ -168,6 +214,8 @@ function Controller.new(model, map, config, options)
 end
 function Controller:_publish()
 	local m = self.Model
+ m:SetAttribute("UnrestrictedRoam",self._unrestrictedRoam==true)
+ m:SetAttribute("RoamDestination",self._roamGoal)
 	m:SetAttribute("RouteState", self._state); m:SetAttribute("RouteCurrentZone", self._currentZone)
 	m:SetAttribute("RouteTargetZone", self._targetZone); m:SetAttribute("RouteIndex", self._routeIndex)
 	m:SetAttribute("RouteReversed", self._reversed); m:SetAttribute("RouteCyclesCompleted", self._cycles)
@@ -186,14 +234,20 @@ function Controller:GetSnapshot()
 		GroundMisses = self._groundMisses, Speed = self._speed, RestRemaining = self._restRemaining,
 		SupportPosition = self._position + Y * self._groundY, FootSupportLocal = self._supportLocal,
 		MotionMode = self._motionMode or "Patrol", CombatBlocked = self._combatBlocked,
+		UnrestrictedRoam=self._unrestrictedRoam==true,
 		PatrolAnchor = self._combatSnapshot and self._combatSnapshot.anchor or nil,
 		FacingDirection = Vector3.new(math.sin(self._yaw), 0, math.cos(self._yaw))}
 end
 function Controller:_ground(position)
+ if self._unrestrictedRoam then
+  local ceiling=math.max(self._groundY+120,self.Config.TerrainMax+100)
+  return workspace:Raycast(Vector3.new(position.X,ceiling,position.Z),Vector3.new(0,-(ceiling-self.Config.TerrainMin+200),0),self._groundParams)
+ end
 	return workspace:Raycast(Vector3.new(position.X, self.Config.TerrainMax + 100, position.Z),
 		Vector3.new(0, -(self.Config.TerrainMax - self.Config.TerrainMin + 200), 0), self._groundParams)
 end
 function Controller:_outsideCombatBounds(position)
+ if self._unrestrictedRoam then return false end
 	local camp = self.Config.position(self.Config.zone("Camp"))
 	local offset = self.Config.WorldOffset or self.Map:GetAttribute("WorldOffset") or Vector3.zero
 	local localPosition = position - offset
@@ -222,7 +276,7 @@ end
 function Controller:SetCombatGoal(position, options)
 	if self._motionMode ~= "Combat" or self._dead or not finite(position) then return false end
 	if self:_outsideCombatBounds(position)
-		or (flat(position) - flat(self._combatSnapshot.anchor)).Magnitude > self._combatLeash then
+		or (not self._unrestrictedRoam and (flat(position) - flat(self._combatSnapshot.anchor)).Magnitude > self._combatLeash) then
 		self._combatGoal = nil; self._speed = 0; self._combatBlocked = true
 		return false
 	end
@@ -247,6 +301,11 @@ function Controller:_resumePatrol()
 end
 function Controller:EndCombat()
 	if not self._combatSnapshot or self._dead then return end
+ if self._unrestrictedRoam then
+  self._roamGeneration+=1;self._roamGoal=nil;self._roamPoints=nil;self._roamRest=self._random:NextNumber(2,5)
+  self._combatSnapshot=nil;self._combatGoal=nil;self._combatFace=nil;self._combatTrail=nil;self._returnIndex=nil
+  self._motionMode=nil;self._combatBlocked=false;self._speed=0;self._state="Resting";self:_publish();return
+ end
 	if self._motionMode == "Returning" then return end
 	self._combatGoal = nil; self._combatFace = nil; self._speed = 0; self._combatBlocked = false
 	self._motionMode = "Returning"; self._state = "ReturningToPatrol"
@@ -270,7 +329,7 @@ end
 function Controller:_safeCombatGround(candidate, direction, dt)
 	local distance = (candidate - self._position).Magnitude
 	local hit = self:_ground(candidate)
-	if not hit or hit.Normal.Y < math.cos(self._combatSlope)
+	if not hit or hit.Material==Enum.Material.Water or hit.Normal.Y < math.cos(self._combatSlope)
 		or math.abs(hit.Position.Y - self._groundY) > math.tan(self._combatSlope) * distance + .65 then return nil end
 	local yaw = self._yaw + math.clamp(angleDelta(self._yaw, math.atan2(direction.X, direction.Z)), -self._turnSpeed * dt, self._turnSpeed * dt)
 	local forward = Vector3.new(math.sin(yaw), 0, math.cos(yaw))
@@ -307,7 +366,7 @@ function Controller:_combatStep(dt)
 	local step = math.min(math.max(0, distance - stop), self._speed * dt)
 	local candidate = self._position + direction * step
 	local blocked = self:_outsideCombatBounds(candidate)
-	if not returning and ((candidate - flat(self._combatSnapshot.anchor)).Magnitude > self._combatLeash
+	if not returning and not self._unrestrictedRoam and ((candidate - flat(self._combatSnapshot.anchor)).Magnitude > self._combatLeash
 		or self._combatTravel + step > 320) then blocked = true end
 	local hit = if not blocked then self:_safeCombatGround(candidate, direction, dt) else nil
 	self._combatBlocked = hit == nil
@@ -333,11 +392,121 @@ function Controller:_combatStep(dt)
 		else self:_resumePatrol() end
 	end
 end
+-- This mode samples walkable world space; it never selects an authored route.
+function Controller:_chooseRoamGoal()
+ self._roamGeneration=(self._roamGeneration or 0)+1
+ local generation=self._roamGeneration
+ self._roamPoints=nil;self._roamIndex=nil;self._roamAge=0;self._roamBlocked=0
+ self._roamGoal=nil
+ for _=1,16 do
+  local angle=self._random:NextNumber(-math.pi,math.pi)
+  local candidate=self._position+Vector3.new(math.sin(angle),0,math.cos(angle))*self._random:NextNumber(40,150)
+  local hit=self:_ground(candidate)
+  if hit and hit.Material~=Enum.Material.Water and hit.Normal.Y>=math.cos(self._combatSlope) then
+   self._roamGoal=hit.Position;break
+  end
+ end
+ if not self._roamGoal then self._roamRest=1;return end
+ self._targetZone="Free";self._state="Wandering"
+ local start=self._position+Y*(self._groundY+.5)
+ local goal=self._roamGoal
+ local destination=goal+Y*.5
+ task.spawn(function()
+  local path
+  local ok=pcall(function()
+   path=PathfindingService:CreatePath({AgentRadius=math.clamp(math.min(self._collisionSize.X,self._collisionSize.Z)*.25,4,14),
+    AgentHeight=math.clamp(self._collisionSize.Y,8,60),AgentCanJump=false,AgentCanClimb=false,WaypointSpacing=12,Costs={Water=math.huge}})
+   path:ComputeAsync(start,destination)
+  end)
+  if not self._destroyed and self._roamGeneration==generation and self._roamGoal==goal
+   and ok and path.Status==Enum.PathStatus.Success then
+   local points={}
+   for _,waypoint in path:GetWaypoints() do
+    if waypoint.Action==Enum.PathWaypointAction.Jump then points={};break end
+    table.insert(points,waypoint.Position)
+   end
+   if #points>=2 then self._roamPoints=points;self._roamIndex=2 end
+  end
+  if path then path:Destroy() end
+ end)
+end
+function Controller:_freeWanderStep(dt,elapsed)
+ if (self._roamRest or 0)>0 then
+  self._roamRest=math.max(0,self._roamRest-elapsed);self._state="Resting";self._speed=0
+  local hit=self:_ground(self._position)
+  local bob=self:_gait(dt,false)
+  if hit then self:_place(dt,hit,Vector3.new(math.sin(self._yaw),0,math.cos(self._yaw)),bob) end
+  return
+ end
+ if not self._roamGoal then self:_chooseRoamGoal();return end
+ self._roamAge=(self._roamAge or 0)+elapsed
+ local target=flat(if self._roamPoints then self._roamPoints[self._roamIndex] else self._roamGoal)
+ local delta=target-self._position
+ if delta.Magnitude<7 then
+  if self._roamPoints and self._roamIndex<#self._roamPoints then self._roamIndex+=1
+  else
+   self._legs+=1;self._roamGoal=nil;self._roamRest=self._random:NextNumber(2,8)
+   local nearest,distance=nil,math.huge
+   for _,zone in self.Config.Zones do
+    local gap=(flat(self.Config.position(zone))-self._position).Magnitude
+    if gap<distance then nearest=zone.id;distance=gap end
+   end
+   if nearest then self._currentZone=nearest;table.insert(self._visited,nearest);if #self._visited>40 then table.remove(self._visited,1) end end
+  end
+  return
+ end
+ local desired=delta.Unit
+ local turning=math.abs(angleDelta(self._yaw,math.atan2(desired.X,desired.Z)))>math.rad(45)
+ self._speed=if turning then 0 else approach(self._speed,self._maxSpeed*(if self.Model:GetAttribute("Weak") then .6 else 1),self._acceleration*dt)
+ local step=math.min(delta.Magnitude,self._speed*dt)
+ local hit,candidate,direction
+ for _,degrees in {0,25,-25,50,-50,85,-85,120,-120} do
+  local yaw=math.atan2(desired.X,desired.Z)+math.rad(degrees)
+  local testDirection=Vector3.new(math.sin(yaw),0,math.cos(yaw))
+  local testPosition=self._position+testDirection*step
+  local ground=self:_safeCombatGround(testPosition,testDirection,dt)
+  if ground then hit=ground;candidate=testPosition;direction=testDirection;break end
+ end
+ if hit then
+  self._position=candidate;self._travelled+=step;self._roamBlocked=0;self._state=if turning then "Turning" else "Wandering"
+  local bob=self:_gait(dt,step>.01);self:_place(dt,hit,direction,bob)
+ else
+  self._speed=0;self._groundMisses+=1;self._roamBlocked=(self._roamBlocked or 0)+elapsed;self._state="FindingPath"
+  local stationary=self:_ground(self._position);local bob=self:_gait(dt,false)
+  if stationary then self:_place(dt,stationary,desired,bob) end
+ end
+ if self._roamBlocked>1.2 or self._roamAge>28 then self._roamGoal=nil;self._roamRest=self._random:NextNumber(.3,1.2) end
+end
+
 function Controller:_beginCycle()
 	local source = self.Config.Routes[self.HomeZone][self._routeIndex]
 	self._route = if self._reversed then reverse(source) else table.clone(source)
 	self._legIndex = 1
 	self:_beginLeg()
+end
+function Controller:_beginWanderLeg()
+	local exits = self._network[self._currentZone]
+	local destinations = {}
+	for destination in exits do
+		local zone = self.Config.zone(destination)
+		if zone.kind ~= "Camp" and destination ~= self._previousZone then
+			table.insert(destinations, destination)
+		end
+	end
+	table.sort(destinations)
+	if #destinations == 0 then
+		for destination in exits do
+			if self.Config.zone(destination).kind ~= "Camp" then table.insert(destinations, destination) end
+		end
+		table.sort(destinations)
+	end
+	assert(#destinations > 0, "Free-roam zone has no safe connected paths: " .. self._currentZone)
+	local nextZone = destinations[self._random:NextInteger(1, #destinations)]
+	self._points = self._network[self._currentZone][nextZone]
+	self._sampleIndex = 2
+	self._targetZone = nextZone
+	self._state = "Walking"
+	self:_publish()
 end
 function Controller:_beginLeg()
 	local a, b = self._route[self._legIndex], self._route[self._legIndex + 1]
@@ -347,10 +516,13 @@ function Controller:_beginLeg()
 	self:_publish()
 end
 function Controller:_arrive()
+	self._previousZone = self._currentZone
 	self._currentZone = self._targetZone; self._legs += 1; self._speed = 0
 	table.insert(self._visited, self._currentZone)
 	if #self._visited > 40 then table.remove(self._visited, 1) end
-	if self._legIndex == #self._route - 1 then
+	if self._freeRoam then
+		self._state = "Resting"; self._restRemaining = self._rest
+	elseif self._legIndex == #self._route - 1 then
 		self._cycles += 1; self._state = "RestingHome"; self._restRemaining = self._homeRest
 	else
 		local zone = self.Config.zone(self._currentZone)
@@ -427,12 +599,14 @@ function Controller:Step(dt)
 		if self._pausedState then self._state = self._pausedState; self._pausedState = nil end
 		if self._motionMode == "Combat" or self._motionMode == "Returning" then
 			self:_combatStep(dt)
+  elseif self._unrestrictedRoam then self:_freeWanderStep(dt,elapsed)
 		else
 		local walking = self._state == "Walking" or self._state == "Turning" or self._state == "GroundBlocked"
 		if not walking then
 			self._restRemaining = math.max(0, self._restRemaining - elapsed)
 			if self._restRemaining <= 0 then
-				if not self._route then self:_beginCycle()
+				if self._freeRoam then self:_beginWanderLeg()
+				elseif not self._route then self:_beginCycle()
 				elseif self._state == "RestingHome" then
 					if not self._fixedRouteIndex then self._routeIndex = self._routeIndex % #self.Config.Routes[self.HomeZone] + 1 end
 					if self._reverseEachCycle then self._reversed = not self._reversed end

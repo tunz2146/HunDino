@@ -26,21 +26,44 @@ function Session:FreezeClock(player)
 end
 
 function Session.new(forest, config, dinosaur, routeController)
-	return setmetatable({
+	local self=setmetatable({
 		Forest = forest, Config = config, Dinosaur = dinosaur, Routes = routeController,
-		Players = {}, Count = 0, Patrol = nil,
+		Players = {}, Count = 0, Patrol = nil, Random = Random.new(),
 		Duration = math.max(30, config.HuntDurationSeconds or 40 * 60),
 	}, Session)
+ self:_ensurePatrol()
+ return self
+end
+
+function Session:_ensurePatrol()
+	if not self.Patrol then
+		local habitats = {}
+		for _, zone in self.Config.Zones do
+			if zone.kind == "Main" or zone.kind == "Rest" then
+				table.insert(habitats, zone)
+			end
+		end
+		assert(#habitats > 0, "Hunting map has no safe dinosaur spawn zones")
+		local spawnZone = habitats[self.Random:NextInteger(1, #habitats)]
+		self.Patrol = self.Routes.new(self.Dinosaur, self.Forest, self.Config, {
+			HomeZone = spawnZone.id,
+			FreeRoam = true,
+   UnrestrictedRoam=true,
+			SpawnPosition = self.Config.position(spawnZone),
+			Random = self.Random,
+			InitialRestSeconds = self.Random:NextNumber(2, 8),
+			RestSeconds = self.Random:NextNumber(6, 14),
+		})
+		self.Patrol:Start()
+		if self.Combat then self.Combat:Reset() end
+	end
 end
 
 function Session:Enter(player)
 	-- A Studio zone jump keeps the current visit and its original entry clock.
 	if self.Players[player] then return end
-	if not self.Patrol then
-		self.Patrol = self.Routes.new(self.Dinosaur, self.Forest, self.Config)
-		self.Patrol:Start()
-		if self.Combat then self.Combat:Reset() end
-	end
+ self:_ensurePatrol()
+ if self.Count==0 and self.Combat and (self.Dinosaur:GetAttribute("DinosaurDead")==true or self.Dinosaur:GetAttribute("Captured")==true) then self.Combat:Reset() end
 	local started = wallTime()
 	self.Players[player] = {StartedAt = started, Duration = self.Duration}
 	self.Count += 1
@@ -63,11 +86,7 @@ function Session:Exit(player)
 		self.Count -= 1
 	end
 	self.Forest:SetAttribute("ActiveHunters", self.Count)
-	if self.Count == 0 and self.Patrol then
-		if self.Combat then self.Combat:Reset() end
-		self.Patrol:Destroy(true)
-		self.Patrol = nil
-	end
+ -- Wildlife keeps roaming even when the final hunter returns to the lobby.
 end
 
 function Session:Expired()
@@ -93,6 +112,7 @@ function Session:Destroy()
 	local players = {}
 	for player in self.Players do table.insert(players, player) end
 	for _, player in players do self:Exit(player) end
+ if self.Patrol then self.Patrol:Destroy(true);self.Patrol=nil end
 end
 
 return Session

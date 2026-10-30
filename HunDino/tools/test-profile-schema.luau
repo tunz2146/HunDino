@@ -96,7 +96,7 @@ test("Crafting, upgrades, choices, rewards and specimen GUIDs survive actual JSO
 	p.Loadout.WeaponId, p.Loadout.PetWeaponId = "Bow", "Katana"
 	p.Loadout.PlayerArmor.Head, p.Loadout.PlayerArmor.Chest = "Bone", "Leather"
 	p.Loadout.PetArmor.Legs = "None"
-	p.Preferences = {ShowComboGuide=false, ShowDamage=false, ShowComboFX=false, AimSensitivity=0.75}
+	p.Preferences.ShowComboGuide=false; p.Preferences.ShowDamage=false; p.Preferences.ShowComboFX=false; p.Preferences.AimSensitivity=0.75
 	p.Pet.HealReadyAt, p.UpdatedAt = NOW + 119, NOW + 1
 	p.Statistics = {HuntsCompleted=3, HuntsFailed=0, Captures=1}
 	local restored, encoded = roundTrip(p)
